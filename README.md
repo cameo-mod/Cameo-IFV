@@ -1,5 +1,7 @@
 # Cameo-IFV
 
+[![Release](https://github.com/cameo-mod/Cameo-IFV/actions/workflows/release.yml/badge.svg)](https://github.com/cameo-mod/Cameo-IFV/actions/workflows/release.yml)
+
 **I**nstaller **F**or **V**ariants — a multi-mod launcher and incremental updater for
 OpenRA-based total conversions (Cameo, Combined Arms, and sister projects).
 
