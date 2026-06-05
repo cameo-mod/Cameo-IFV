@@ -49,7 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _services = services;
         _selectedLibraryRoot = _services.LibraryRoot;
-        foreach (var mod in _services.Catalog.Mods)
+        foreach (var mod in _services.Catalog.Mods.OrderBy(m => m.DisplayName, StringComparer.CurrentCultureIgnoreCase))
             Mods.Add(mod);
 
         if (_services.LastCleanupResult.TotalDeleted > 0)
