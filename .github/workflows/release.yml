@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-portable:
+    name: Windows portable package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test .\Cameo-IFV.slnx -c Release
+
+      - name: Choose package version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}"
+          } else {
+            $version = "manual-${{ github.run_number }}"
+          }
+
+          "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Publish Windows x64 app
+        run: >
+          dotnet publish .\src\CameoIFV.App\CameoIFV.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=false
+          -o .\artifacts\publish\Cameo-IFV
+
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
+          $zip = ".\artifacts\Cameo-IFV-$env:PACKAGE_VERSION-win-x64.zip"
+          if (Test-Path $zip) {
+            Remove-Item $zip
+          }
+
+          Compress-Archive `
+            -Path .\artifacts\publish\Cameo-IFV `
+            -DestinationPath $zip `
+            -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cameo-IFV-${{ env.PACKAGE_VERSION }}-win-x64
+          path: artifacts/Cameo-IFV-${{ env.PACKAGE_VERSION }}-win-x64.zip
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $asset = ".\artifacts\Cameo-IFV-$env:PACKAGE_VERSION-win-x64.zip"
+          $title = "Cameo-IFV $tag"
+          $notes = @"
+          Windows x64 portable build.
+
+          Extract the zip and run `CameoIFV.App.exe`.
+          "@
+
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag $asset --clobber
+          } else {
+            gh release create $tag $asset --title $title --notes $notes --verify-tag
+          }

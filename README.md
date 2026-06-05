@@ -44,3 +44,15 @@ Early scaffold. See [docs/DESIGN.md](docs/DESIGN.md) for the architecture and op
 ```
 dotnet build Cameo-IFV.slnx
 ```
+
+## Releasing
+
+GitHub Actions publishes a Windows x64 portable zip when a version tag is pushed:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release asset is named like `Cameo-IFV-v0.1.0-win-x64.zip` and contains one
+top-level `Cameo-IFV/` folder.
