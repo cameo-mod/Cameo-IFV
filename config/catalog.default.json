@@ -77,6 +77,57 @@
           }
         }
       ]
+    },
+    {
+      "id": "openra-red-alert",
+      "displayName": "OpenRA: Red Alert",
+      "launchExecutable": "RedAlert.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "OpenRA/OpenRA",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "openra-tiberian-dawn",
+      "displayName": "OpenRA: Tiberian Dawn",
+      "launchExecutable": "TiberianDawn.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "OpenRA/OpenRA",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "openra-dune-2000",
+      "displayName": "OpenRA: Dune 2000",
+      "launchExecutable": "Dune2000.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "OpenRA/OpenRA",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
     }
   ]
 }

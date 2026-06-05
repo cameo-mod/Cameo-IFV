@@ -5,7 +5,7 @@
 *"Everything's made to fit!"*
 
 **I**nstaller **F**or **V**ariants — a multi-mod launcher and incremental updater for
-OpenRA-based total conversions (Cameo, Combined Arms, and sister projects).
+OpenRA-based games and total conversions (Cameo, Combined Arms, and sister projects).
 
 Named after the Red Alert 2 IFV: one chassis, many payloads. One launcher, many mods.
 
@@ -29,6 +29,7 @@ Cameo-IFV fixes that and generalises the launcher so any OpenRA mod is just a co
   - Combined Arms: stable at `Inq8/CAmod`, dev at `darkademic/CAmod`.
   - You Must Construct Additional: stable at `patrickwieth/YMCA`.
   - OpenE2140: stable at `OpenE2140/OpenE2140`.
+  - OpenRA: Red Alert, Tiberian Dawn, and Dune 2000 from `OpenRA/OpenRA`.
 - **Per-version instances.** Each installed version is isolated, so versions don't clobber one
   another's files or settings.
 - **Writable per-user data dir.** Settings/cache live under a per-user location (not the install

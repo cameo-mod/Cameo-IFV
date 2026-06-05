@@ -27,7 +27,18 @@ public class CatalogLoaderTests
         var catalog = CatalogLoader.Load(FindRepoFile(Path.Combine("config", "catalog.default.json")));
 
         // Mods, in order.
-        Assert.Equal(new[] { "cameo", "combined-arms", "ymca", "opene2140" }, catalog.Mods.Select(m => m.Id));
+        Assert.Equal(
+            new[]
+            {
+                "cameo",
+                "combined-arms",
+                "ymca",
+                "opene2140",
+                "openra-red-alert",
+                "openra-tiberian-dawn",
+                "openra-dune-2000",
+            },
+            catalog.Mods.Select(m => m.Id));
 
         var cameo = catalog.Mods.Single(m => m.Id == "cameo");
         Assert.Equal("Cameo", cameo.DisplayName);
@@ -67,5 +78,21 @@ public class CatalogLoaderTests
         Assert.Equal("OpenE2140/OpenE2140", opene2140Source.Repository);
         Assert.Equal("-x64-winportable.zip", opene2140Source.Assets["windows"].AssetSuffix);
         Assert.Null(opene2140Source.Assets["windows"].ZsyncSuffix);
+
+        AssertOpenRA(catalog, "openra-red-alert", "OpenRA: Red Alert", "RedAlert.exe");
+        AssertOpenRA(catalog, "openra-tiberian-dawn", "OpenRA: Tiberian Dawn", "TiberianDawn.exe");
+        AssertOpenRA(catalog, "openra-dune-2000", "OpenRA: Dune 2000", "Dune2000.exe");
+    }
+
+    private static void AssertOpenRA(ModCatalog catalog, string id, string displayName, string launchExecutable)
+    {
+        var mod = catalog.Mods.Single(m => m.Id == id);
+        Assert.Equal(displayName, mod.DisplayName);
+        Assert.Equal(launchExecutable, mod.LaunchExecutable);
+        var source = Assert.Single(mod.Sources);
+        Assert.Equal(ReleaseChannel.Stable, source.Channel);
+        Assert.Equal("OpenRA/OpenRA", source.Repository);
+        Assert.Equal("-x64-winportable.zip", source.Assets["windows"].AssetSuffix);
+        Assert.Null(source.Assets["windows"].ZsyncSuffix);
     }
 }
