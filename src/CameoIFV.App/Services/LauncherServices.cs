@@ -16,10 +16,16 @@ namespace CameoIFV.App.Services;
 /// </summary>
 public sealed class LauncherServices
 {
+    private readonly HttpClient _http;
+    private readonly UpdaterFactory _factory;
+    private readonly LauncherSettingsStore _settingsStore;
+
     public ModCatalog Catalog { get; }
     public IReleaseProvider ReleaseProvider { get; }
-    public InstallOrchestrator Installer { get; }
-    public InstanceManager Instances { get; }
+    public InstallOrchestrator Installer { get; private set; }
+    public InstanceManager Instances { get; private set; }
+    public LauncherPaths Paths { get; private set; }
+    public string LibraryRoot => Paths.Root;
 
     /// <summary>Active platform key used to select per-OS assets from the catalog.</summary>
     public string Platform { get; } = OperatingSystem.IsWindows() ? "windows"
@@ -29,19 +35,36 @@ public sealed class LauncherServices
 
     public LauncherServices()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
-        http.DefaultRequestHeaders.Add("User-Agent", "Cameo-IFV/0.1");
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
+        _http.DefaultRequestHeaders.Add("User-Agent", "Cameo-IFV/0.1");
 
-        var paths = new LauncherPaths();
-        paths.EnsureBaseDirs();
+        _settingsStore = new LauncherSettingsStore();
+        var settings = _settingsStore.Load();
+        Paths = new LauncherPaths(_settingsStore.ResolveLibraryRoot(settings), _settingsStore.SettingsDir);
+        Paths.EnsureBaseDirs();
 
         Catalog = LoadCatalog();
-        ReleaseProvider = new GitHubReleaseProvider(http, new ETagStore(paths.ETagCacheFile));
+        ReleaseProvider = new GitHubReleaseProvider(_http, new ETagStore(Paths.ETagCacheFile));
 
+        _factory = new UpdaterFactory(_http);
+        (Installer, Instances) = CreateInstallServices(Paths);
+    }
+
+    public void SetLibraryRoot(string libraryRoot)
+    {
+        var resolved = Path.GetFullPath(Environment.ExpandEnvironmentVariables(libraryRoot));
+        var paths = new LauncherPaths(resolved, _settingsStore.SettingsDir);
+        paths.EnsureBaseDirs();
+
+        _settingsStore.Save(new LauncherSettings(resolved));
+        Paths = paths;
+        (Installer, Instances) = CreateInstallServices(Paths);
+    }
+
+    private (InstallOrchestrator Installer, InstanceManager Instances) CreateInstallServices(LauncherPaths paths)
+    {
         var planner = new UpdatePlanner(paths);
-        var factory = new UpdaterFactory(http);
-        Installer = new InstallOrchestrator(paths, planner, factory);
-        Instances = new InstanceManager(paths);
+        return (new InstallOrchestrator(paths, planner, _factory), new InstanceManager(paths));
     }
 
     private static ModCatalog LoadCatalog()

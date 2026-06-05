@@ -14,17 +14,19 @@ namespace CameoIFV.Core.Storage;
 /// </summary>
 public sealed class LauncherPaths
 {
+    public string ConfigRoot { get; }
     public string Root { get; }
 
-    public LauncherPaths(string? rootOverride = null)
+    public LauncherPaths(string? rootOverride = null, string? configRootOverride = null)
     {
         Root = rootOverride
-               ?? Path.Combine(
-                   Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                   "Cameo-IFV");
+               ?? DefaultRoot();
+        ConfigRoot = configRootOverride
+                     ?? rootOverride
+                     ?? DefaultRoot();
     }
 
-    public string ETagCacheFile => Path.Combine(Root, "etags.json");
+    public string ETagCacheFile => Path.Combine(ConfigRoot, "etags.json");
 
     public string DownloadsDir => Path.Combine(Root, "downloads");
 
@@ -36,9 +38,15 @@ public sealed class LauncherPaths
 
     public void EnsureBaseDirs()
     {
+        Directory.CreateDirectory(ConfigRoot);
         Directory.CreateDirectory(Root);
         Directory.CreateDirectory(DownloadsDir);
     }
+
+    public static string DefaultRoot()
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Cameo-IFV");
 
     /// <summary>Tags become folder names; strip anything a path can't hold.</summary>
     private static string SanitizeTag(string tag)

@@ -30,15 +30,19 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _deleteButtonText = "Delete";
+    [ObservableProperty] private string _libraryRootText;
 
     private string? _pendingDeleteTag;
     private int _deleteConfirmationVersion;
+
+    public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
     public MainWindowViewModel(LauncherServices services)
     {
         _services = services;
+        _libraryRootText = _services.LibraryRoot;
         foreach (var mod in _services.Catalog.Mods)
             Mods.Add(mod);
         SelectedMod = Mods.FirstOrDefault();
@@ -80,6 +84,11 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnIsBusyChanged(bool value)
     {
         NotifyCommandStatesChanged();
+    }
+
+    partial void OnLibraryRootTextChanged(string value)
+    {
+        ApplyLibraryRootCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanRefreshReleases))]
@@ -207,6 +216,49 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool CanDelete() => SelectedInstance is not null && !IsBusy;
 
+    [RelayCommand(CanExecute = nameof(CanBrowseLibrary))]
+    private async Task BrowseLibraryAsync()
+    {
+        if (PickLibraryFolderAsync is null)
+        {
+            Status = "Folder picker is not available.";
+            return;
+        }
+
+        var picked = await PickLibraryFolderAsync(LibraryRootText);
+        if (!string.IsNullOrWhiteSpace(picked))
+            LibraryRootText = picked;
+    }
+
+    private bool CanBrowseLibrary() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanApplyLibraryRoot))]
+    private void ApplyLibraryRoot()
+    {
+        var libraryRoot = LibraryRootText.Trim();
+        if (string.IsNullOrWhiteSpace(libraryRoot))
+            return;
+
+        try
+        {
+            ClearPendingDelete();
+            _services.SetLibraryRoot(libraryRoot);
+            LibraryRootText = _services.LibraryRoot;
+            RefreshInstalled();
+            NotifyCommandStatesChanged();
+            Status = $"Library location set to {_services.LibraryRoot}.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Failed to set library location: {ex.Message}";
+        }
+    }
+
+    private bool CanApplyLibraryRoot()
+        => !IsBusy
+           && !string.IsNullOrWhiteSpace(LibraryRootText)
+           && !StringComparer.OrdinalIgnoreCase.Equals(LibraryRootText.Trim(), _services.LibraryRoot);
+
     private void RefreshInstalled()
     {
         InstalledInstances.Clear();
@@ -280,5 +332,7 @@ public partial class MainWindowViewModel : ViewModelBase
         InstallCommand.NotifyCanExecuteChanged();
         PlayCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
+        BrowseLibraryCommand.NotifyCanExecuteChanged();
+        ApplyLibraryRootCommand.NotifyCanExecuteChanged();
     }
 }
