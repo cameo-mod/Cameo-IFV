@@ -26,8 +26,8 @@ public class CatalogLoaderTests
     {
         var catalog = CatalogLoader.Load(FindRepoFile(Path.Combine("config", "catalog.default.json")));
 
-        // Two mods, in order.
-        Assert.Equal(new[] { "cameo", "combined-arms" }, catalog.Mods.Select(m => m.Id));
+        // Mods, in order.
+        Assert.Equal(new[] { "cameo", "combined-arms", "ymca", "opene2140" }, catalog.Mods.Select(m => m.Id));
 
         var cameo = catalog.Mods.Single(m => m.Id == "cameo");
         Assert.Equal("Cameo", cameo.DisplayName);
@@ -49,5 +49,23 @@ public class CatalogLoaderTests
         Assert.Equal("darkademic/CAmod", ca.Sources.Single(s => s.Channel == ReleaseChannel.Dev).Repository);
         // CA has no zsync yet -> explicit null, exercising the full-download fallback path.
         Assert.Null(ca.Sources[0].Assets["windows"].ZsyncSuffix);
+
+        var ymca = catalog.Mods.Single(m => m.Id == "ymca");
+        Assert.Equal("You Must Construct Additional", ymca.DisplayName);
+        Assert.Equal("YouMustConstructAdditional.exe", ymca.LaunchExecutable);
+        var ymcaSource = Assert.Single(ymca.Sources);
+        Assert.Equal(ReleaseChannel.Stable, ymcaSource.Channel);
+        Assert.Equal("patrickwieth/YMCA", ymcaSource.Repository);
+        Assert.Equal("-x64-winportable.zip", ymcaSource.Assets["windows"].AssetSuffix);
+        Assert.Null(ymcaSource.Assets["windows"].ZsyncSuffix);
+
+        var opene2140 = catalog.Mods.Single(m => m.Id == "opene2140");
+        Assert.Equal("OpenE2140", opene2140.DisplayName);
+        Assert.Equal("OpenE2140.exe", opene2140.LaunchExecutable);
+        var opene2140Source = Assert.Single(opene2140.Sources);
+        Assert.Equal(ReleaseChannel.Stable, opene2140Source.Channel);
+        Assert.Equal("OpenE2140/OpenE2140", opene2140Source.Repository);
+        Assert.Equal("-x64-winportable.zip", opene2140Source.Assets["windows"].AssetSuffix);
+        Assert.Null(opene2140Source.Assets["windows"].ZsyncSuffix);
     }
 }

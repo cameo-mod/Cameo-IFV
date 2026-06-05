@@ -25,6 +25,8 @@ Cameo-IFV fixes that and generalises the launcher so any OpenRA mod is just a co
   (repo + channel + per-OS asset filter). See [config/catalog.default.json](config/catalog.default.json).
   - Cameo: a single feed at `cameo-mod/Cameo-mod` (no separate dev channel).
   - Combined Arms: stable at `Inq8/CAmod`, dev at `darkademic/CAmod`.
+  - You Must Construct Additional: stable at `patrickwieth/YMCA`.
+  - OpenE2140: stable at `OpenE2140/OpenE2140`.
 - **Per-version instances.** Each installed version is isolated, so versions don't clobber one
   another's files or settings.
 - **Writable per-user data dir.** Settings/cache live under a per-user location (not the install

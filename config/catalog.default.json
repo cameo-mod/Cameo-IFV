@@ -43,6 +43,40 @@
           }
         }
       ]
+    },
+    {
+      "id": "ymca",
+      "displayName": "You Must Construct Additional",
+      "launchExecutable": "YouMustConstructAdditional.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "patrickwieth/YMCA",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "opene2140",
+      "displayName": "OpenE2140",
+      "launchExecutable": "OpenE2140.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "OpenE2140/OpenE2140",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
     }
   ]
 }
