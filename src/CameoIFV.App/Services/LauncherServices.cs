@@ -22,6 +22,7 @@ public sealed class LauncherServices
     private readonly HttpClient _http;
     private readonly UpdaterFactory _factory;
     private readonly LauncherSettingsStore _settingsStore;
+    private LauncherSettings _settings;
 
     public ModCatalog Catalog { get; }
     public IReleaseProvider ReleaseProvider { get; }
@@ -43,10 +44,10 @@ public sealed class LauncherServices
         _http.DefaultRequestHeaders.Add("User-Agent", "Cameo-IFV/0.1");
 
         _settingsStore = new LauncherSettingsStore();
-        var settings = _settingsStore.Load();
-        Paths = new LauncherPaths(_settingsStore.ResolveLibraryRoot(settings), _settingsStore.SettingsDir);
+        _settings = _settingsStore.Load();
+        Paths = new LauncherPaths(_settingsStore.ResolveLibraryRoot(_settings), _settingsStore.SettingsDir);
         Paths.EnsureBaseDirs();
-        SetKnownLibraryRoots(_settingsStore.ResolveKnownLibraryRoots(settings));
+        SetKnownLibraryRoots(_settingsStore.ResolveKnownLibraryRoots(_settings));
 
         Catalog = LoadCatalog();
         ReleaseProvider = new GitHubReleaseProvider(_http, new ETagStore(Paths.ETagCacheFile));
@@ -65,7 +66,7 @@ public sealed class LauncherServices
             .Append(resolved)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        _settingsStore.Save(new LauncherSettings(resolved, roots));
+        SaveSettings(_settings with { LibraryRoot = resolved, LibraryRoots = roots });
         Paths = paths;
         (Installer, Instances) = CreateInstallServices(Paths);
         SetKnownLibraryRoots(roots);
@@ -89,10 +90,28 @@ public sealed class LauncherServices
         var paths = new LauncherPaths(activeRoot, _settingsStore.SettingsDir);
         paths.EnsureBaseDirs();
 
-        _settingsStore.Save(new LauncherSettings(activeRoot, roots.ToArray()));
+        SaveSettings(_settings with { LibraryRoot = activeRoot, LibraryRoots = roots.ToArray() });
         Paths = paths;
         (Installer, Instances) = CreateInstallServices(Paths);
         SetKnownLibraryRoots(roots);
+    }
+
+    public SelectedChannelSettings? SelectedChannel => _settings.SelectedChannel;
+    public string? SelectedModId => _settings.SelectedModId;
+
+    public void SetSelectedFeed(ModDefinition mod, ReleaseSource source)
+    {
+        SaveSettings(_settings with
+        {
+            SelectedModId = mod.Id,
+            SelectedChannel = new SelectedChannelSettings(mod.Id, source.Channel, source.Repository),
+        });
+    }
+
+    private void SaveSettings(LauncherSettings settings)
+    {
+        _settings = settings;
+        _settingsStore.Save(_settings);
     }
 
     private void SetKnownLibraryRoots(IEnumerable<string> roots)

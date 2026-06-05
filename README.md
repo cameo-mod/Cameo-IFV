@@ -59,4 +59,4 @@ git push origin v0.1.0
 ```
 
 The release asset is named like `Cameo-IFV-v0.1.0-win-x64.zip` and contains one
-top-level `Cameo-IFV/` folder.
+top-level `Cameo-IFV/` folder. Extract it and run `Cameo-IFV.exe`.

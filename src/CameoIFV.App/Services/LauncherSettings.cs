@@ -4,10 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using CameoIFV.Core.Storage;
+using CameoIFV.Core.Model;
 
 namespace CameoIFV.App.Services;
 
-public sealed record LauncherSettings(string? LibraryRoot, string[]? LibraryRoots)
+public sealed record LauncherSettings(
+    string? LibraryRoot,
+    string[]? LibraryRoots,
+    string? SelectedModId,
+    SelectedChannelSettings? SelectedChannel)
 {
     public IReadOnlyList<string> KnownLibraryRoots()
     {
@@ -34,6 +39,8 @@ public sealed record LauncherSettings(string? LibraryRoot, string[]? LibraryRoot
         => Path.GetFullPath(Environment.ExpandEnvironmentVariables(root));
 }
 
+public sealed record SelectedChannelSettings(string ModId, ReleaseChannel Channel, string? Repository);
+
 public sealed class LauncherSettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -44,16 +51,16 @@ public sealed class LauncherSettingsStore
     public LauncherSettings Load()
     {
         if (!File.Exists(SettingsFile))
-            return new LauncherSettings(null, null);
+            return new LauncherSettings(null, null, null, null);
 
         try
         {
             return JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(SettingsFile), JsonOptions)
-                   ?? new LauncherSettings(null, null);
+                   ?? new LauncherSettings(null, null, null, null);
         }
         catch
         {
-            return new LauncherSettings(null, null);
+            return new LauncherSettings(null, null, null, null);
         }
     }
 

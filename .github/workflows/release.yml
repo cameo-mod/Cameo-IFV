@@ -43,8 +43,20 @@ jobs:
           -c Release
           -r win-x64
           --self-contained true
-          -p:PublishSingleFile=false
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:PublishTrimmed=false
           -o .\artifacts\publish\Cameo-IFV
+
+      - name: Tidy portable package
+        shell: pwsh
+        run: |
+          Remove-Item .\artifacts\publish\Cameo-IFV\*.pdb -ErrorAction SilentlyContinue
+          Rename-Item `
+            -Path .\artifacts\publish\Cameo-IFV\CameoIFV.App.exe `
+            -NewName Cameo-IFV.exe
 
       - name: Create portable zip
         shell: pwsh
@@ -78,7 +90,7 @@ jobs:
           $notes = @"
           Windows x64 portable build.
 
-          Extract the zip and run `CameoIFV.App.exe`.
+          Extract the zip and run `Cameo-IFV.exe`.
           "@
 
           if (gh release view $tag 2>$null) {

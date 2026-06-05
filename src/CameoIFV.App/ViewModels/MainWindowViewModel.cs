@@ -50,7 +50,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _selectedLibraryRoot = _services.LibraryRoot;
         foreach (var mod in _services.Catalog.Mods)
             Mods.Add(mod);
-        SelectedMod = Mods.FirstOrDefault();
+
+        SelectedMod = FindPreferredMod() ?? Mods.FirstOrDefault();
     }
 
     partial void OnSelectedModChanged(ModDefinition? value)
@@ -64,12 +65,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
         RefreshInstalled();
         // Setting SelectedChannel triggers OnSelectedChannelChanged, which lists that feed.
-        SelectedChannel = Channels.FirstOrDefault();
+        SelectedChannel = FindPreferredChannel(value) ?? Channels.FirstOrDefault();
         NotifyCommandStatesChanged();
     }
 
     partial void OnSelectedChannelChanged(ChannelOption? value)
     {
+        if (SelectedMod is not null && value is not null)
+            _services.SetSelectedFeed(SelectedMod, value.Source);
+
         NotifyCommandStatesChanged();
         _ = RefreshReleasesAsync();
     }
@@ -134,6 +138,30 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private bool CanRefreshReleases() => SelectedMod is not null && SelectedChannel is not null && !IsBusy;
+
+    private ModDefinition? FindPreferredMod()
+    {
+        if (string.IsNullOrWhiteSpace(_services.SelectedModId))
+            return null;
+
+        return Mods.FirstOrDefault(mod => string.Equals(mod.Id, _services.SelectedModId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private ChannelOption? FindPreferredChannel(ModDefinition? mod)
+    {
+        var saved = _services.SelectedChannel;
+        if (mod is null || saved is null)
+            return null;
+
+        if (!string.Equals(saved.ModId, mod.Id, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var exactMatch = Channels.FirstOrDefault(channel =>
+            channel.Source.Channel == saved.Channel &&
+            string.Equals(channel.Source.Repository, saved.Repository, StringComparison.OrdinalIgnoreCase));
+
+        return exactMatch ?? Channels.FirstOrDefault(channel => channel.Source.Channel == saved.Channel);
+    }
 
     [RelayCommand(CanExecute = nameof(CanInstall))]
     private async Task InstallAsync()
