@@ -49,16 +49,19 @@ public static class LibraryCleanup
             return 0;
 
         var deleted = 0;
-        foreach (var dir in Directory.EnumerateDirectories(root, pattern, SearchOption.AllDirectories))
+        foreach (var modDir in Directory.EnumerateDirectories(root))
         {
-            try
+            foreach (var dir in Directory.EnumerateDirectories(modDir, pattern, SearchOption.TopDirectoryOnly))
             {
-                Directory.Delete(dir, recursive: true);
-                deleted++;
-            }
-            catch
-            {
-                // Best effort: leave anything locked for the next startup.
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                    deleted++;
+                }
+                catch
+                {
+                    // Best effort: leave anything locked for the next startup.
+                }
             }
         }
 

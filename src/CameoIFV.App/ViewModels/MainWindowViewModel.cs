@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CameoIFV.App.Services;
 using CameoIFV.Core.Github;
 using CameoIFV.Core.Install;
+using CameoIFV.Core.Interaction;
 using CameoIFV.Core.Model;
 using CameoIFV.Core.Update;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -34,10 +35,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _removeLibraryButtonText = "Remove path";
     [ObservableProperty] private string? _selectedLibraryRoot;
 
-    private string? _pendingDeleteTag;
-    private int _deleteConfirmationVersion;
-    private string? _pendingRemoveLibraryRoot;
-    private int _removeLibraryConfirmationVersion;
+    private readonly ConfirmationGate _deleteConfirmation = new(TimeSpan.FromSeconds(5));
+    private readonly ConfirmationGate _removeLibraryConfirmation = new(TimeSpan.FromSeconds(5));
     private bool _suppressLibrarySelectionSwitch;
     private CancellationTokenSource? _installCancellation;
 
@@ -255,12 +254,13 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedInstance is null || IsBusy)
             return;
 
-        if (_pendingDeleteTag != SelectedInstance.Tag)
+        var now = DateTimeOffset.UtcNow;
+        if (!_deleteConfirmation.Confirm(SelectedInstance.Tag, now))
         {
-            _pendingDeleteTag = SelectedInstance.Tag;
+            var version = _deleteConfirmation.Arm(SelectedInstance.Tag, now);
             DeleteButtonText = "Confirm Delete";
             Status = $"Click Confirm Delete within 5 seconds to remove {SelectedInstance.Tag}.";
-            ExpireDeleteConfirmationAfterDelay(SelectedInstance.Tag, ++_deleteConfirmationVersion);
+            ExpireDeleteConfirmationAfterDelay(SelectedInstance.Tag, version);
             return;
         }
 
@@ -301,13 +301,13 @@ public partial class MainWindowViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(SelectedLibraryRoot) || IsBusy)
             return;
 
-        if (_pendingRemoveLibraryRoot is null ||
-            !StringComparer.OrdinalIgnoreCase.Equals(_pendingRemoveLibraryRoot, SelectedLibraryRoot))
+        var now = DateTimeOffset.UtcNow;
+        if (!_removeLibraryConfirmation.Confirm(SelectedLibraryRoot, now))
         {
-            _pendingRemoveLibraryRoot = SelectedLibraryRoot;
+            var version = _removeLibraryConfirmation.Arm(SelectedLibraryRoot, now);
             RemoveLibraryButtonText = "Confirm Remove";
             Status = $"Click Confirm Remove within 5 seconds to forget {SelectedLibraryRoot}. Files will not be deleted.";
-            ExpireRemoveLibraryConfirmationAfterDelay(SelectedLibraryRoot, ++_removeLibraryConfirmationVersion);
+            ExpireRemoveLibraryConfirmationAfterDelay(SelectedLibraryRoot, version);
             return;
         }
 
@@ -388,15 +388,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ClearPendingDelete()
     {
-        _pendingDeleteTag = null;
-        _deleteConfirmationVersion++;
+        _deleteConfirmation.Clear();
         DeleteButtonText = "Delete";
     }
 
     private async void ExpireDeleteConfirmationAfterDelay(string tag, int version)
     {
-        await Task.Delay(TimeSpan.FromSeconds(5));
-        if (_deleteConfirmationVersion != version || _pendingDeleteTag != tag)
+        await Task.Delay(_deleteConfirmation.Window);
+        if (!_deleteConfirmation.IsExpired(tag, DateTimeOffset.UtcNow, version))
             return;
 
         ClearPendingDelete();
@@ -405,16 +404,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ClearPendingRemoveLibrary()
     {
-        _pendingRemoveLibraryRoot = null;
-        _removeLibraryConfirmationVersion++;
+        _removeLibraryConfirmation.Clear();
         RemoveLibraryButtonText = "Remove path";
     }
 
     private async void ExpireRemoveLibraryConfirmationAfterDelay(string libraryRoot, int version)
     {
-        await Task.Delay(TimeSpan.FromSeconds(5));
-        if (_removeLibraryConfirmationVersion != version ||
-            !StringComparer.OrdinalIgnoreCase.Equals(_pendingRemoveLibraryRoot, libraryRoot))
+        await Task.Delay(_removeLibraryConfirmation.Window);
+        if (!_removeLibraryConfirmation.IsExpired(libraryRoot, DateTimeOffset.UtcNow, version))
             return;
 
         ClearPendingRemoveLibrary();

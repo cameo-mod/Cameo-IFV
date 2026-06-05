@@ -37,6 +37,7 @@ public class GitHubRangeDownloaderTests
     }
 
     [SkippableFact]
+    [Trait("Category", "Network")]
     public void DownloadRange_ReturnsExactlyRequestedBytes_StartsWithZipMagic()
     {
         Skip.IfNot(Online(), "No network / asset unreachable.");

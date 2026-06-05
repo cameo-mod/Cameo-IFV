@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using CameoIFV.Core.Storage;
 using CameoIFV.Core.Model;
 
-namespace CameoIFV.App.Services;
+namespace CameoIFV.Core.Storage;
 
 public sealed record LauncherSettings(
     string? LibraryRoot,
@@ -45,22 +40,27 @@ public sealed class LauncherSettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public string SettingsDir { get; } = LauncherPaths.DefaultRoot();
+    public LauncherSettingsStore(string? settingsDirOverride = null)
+    {
+        SettingsDir = settingsDirOverride ?? LauncherPaths.DefaultRoot();
+    }
+
+    public string SettingsDir { get; }
     public string SettingsFile => Path.Combine(SettingsDir, "settings.json");
 
     public LauncherSettings Load()
     {
         if (!File.Exists(SettingsFile))
-            return new LauncherSettings(null, null, null, null);
+            return Empty();
 
         try
         {
             return JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(SettingsFile), JsonOptions)
-                   ?? new LauncherSettings(null, null, null, null);
+                   ?? Empty();
         }
         catch
         {
-            return new LauncherSettings(null, null, null, null);
+            return Empty();
         }
     }
 
@@ -81,4 +81,6 @@ public sealed class LauncherSettingsStore
         roots.AddRange(settings.KnownLibraryRoots());
         return roots.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    private static LauncherSettings Empty() => new(null, null, null, null);
 }

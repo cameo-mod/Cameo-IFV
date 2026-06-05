@@ -36,8 +36,8 @@ public class LauncherPathsTests
     [Fact]
     public void Cleanup_RemovesInterruptedInstallScratchOnly()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"ifv-cleanup-{Guid.NewGuid():N}");
-        var paths = new LauncherPaths(root);
+        using var temp = new TempDir();
+        var paths = new LauncherPaths(temp.Path);
         paths.EnsureBaseDirs();
 
         var partial = Path.Combine(paths.DownloadsDir, "cameo-stable-playtest.zip.part");
@@ -70,6 +70,26 @@ public class LauncherPathsTests
         Assert.True(Directory.Exists(installed));
         Assert.True(File.Exists(seed));
 
-        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public void Cleanup_PreservesNestedDirectoriesThatLookLikeScratch()
+    {
+        using var temp = new TempDir();
+        var paths = new LauncherPaths(temp.Path);
+        var installed = paths.InstanceDir("cameo", "playtest");
+        var nested = Path.Combine(installed, "mods", "example.staging-data");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(nested, "keep.txt"), "keep");
+
+        var topLevelScratch = Path.Combine(paths.InstancesDir, "cameo", "playtest.staging-abandoned");
+        Directory.CreateDirectory(topLevelScratch);
+
+        var result = LibraryCleanup.CleanInterruptedInstalls(paths);
+
+        Assert.Equal(1, result.StagingDirectoriesDeleted);
+        Assert.False(Directory.Exists(topLevelScratch));
+        Assert.True(Directory.Exists(nested));
+        Assert.True(File.Exists(Path.Combine(nested, "keep.txt")));
     }
 }
