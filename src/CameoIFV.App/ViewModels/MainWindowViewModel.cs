@@ -56,19 +56,33 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshInstalled();
         // Setting SelectedChannel triggers OnSelectedChannelChanged, which lists that feed.
         SelectedChannel = Channels.FirstOrDefault();
+        NotifyCommandStatesChanged();
     }
 
     partial void OnSelectedChannelChanged(ChannelOption? value)
     {
+        NotifyCommandStatesChanged();
         _ = RefreshReleasesAsync();
+    }
+
+    partial void OnSelectedReleaseChanged(ResolvedRelease? value)
+    {
+        InstallCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedInstanceChanged(InstalledInstance? value)
     {
         ClearPendingDelete();
+        PlayCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand]
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyCommandStatesChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRefreshReleases))]
     private async Task RefreshReleasesAsync()
     {
         if (SelectedMod is null || SelectedChannel is null || IsBusy)
@@ -99,7 +113,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    private bool CanRefreshReleases() => SelectedMod is not null && SelectedChannel is not null && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanInstall))]
     private async Task InstallAsync()
     {
         if (SelectedMod is null || SelectedRelease is null || IsBusy)
@@ -139,7 +155,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    private bool CanInstall() => SelectedMod is not null && SelectedRelease is not null && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanPlay))]
     private void Play()
     {
         if (SelectedInstance is null)
@@ -157,7 +175,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    private bool CanPlay() => SelectedInstance?.IsRunnable == true && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanDelete))]
     private void Delete()
     {
         if (SelectedInstance is null || IsBusy)
@@ -185,6 +205,8 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private bool CanDelete() => SelectedInstance is not null && !IsBusy;
+
     private void RefreshInstalled()
     {
         InstalledInstances.Clear();
@@ -195,6 +217,8 @@ public partial class MainWindowViewModel : ViewModelBase
             InstalledInstances.Add(instance);
 
         SelectedInstance = InstalledInstances.FirstOrDefault();
+        PlayCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
     }
 
     private void ClearPendingDelete()
@@ -248,5 +272,13 @@ public partial class MainWindowViewModel : ViewModelBase
             >= (long)kib => $"{bytes / kib:F0} KB",
             _ => $"{bytes} B",
         };
+    }
+
+    private void NotifyCommandStatesChanged()
+    {
+        RefreshReleasesCommand.NotifyCanExecuteChanged();
+        InstallCommand.NotifyCanExecuteChanged();
+        PlayCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
     }
 }
