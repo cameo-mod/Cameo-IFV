@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CameoIFV.App.ViewModels"
+        xmlns:model="using:CameoIFV.Core.Model"
+        xmlns:gh="using:CameoIFV.Core.Github"
+        xmlns:inst="using:CameoIFV.Core.Install"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="520"
+        x:Class="CameoIFV.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Width="760" Height="520"
+        Title="Cameo-IFV">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto" ColumnDefinitions="*,16,*">
+
+        <!-- Mod picker -->
+        <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Mod" VerticalAlignment="Center"/>
+            <ComboBox MinWidth="160" ItemsSource="{Binding Mods}" SelectedItem="{Binding SelectedMod}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="model:ModDefinition">
+                        <TextBlock Text="{Binding DisplayName}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="Channel" VerticalAlignment="Center"/>
+            <ComboBox MinWidth="240" ItemsSource="{Binding Channels}" SelectedItem="{Binding SelectedChannel}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ChannelOption">
+                        <TextBlock Text="{Binding Label}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Content="Refresh" Command="{Binding RefreshReleasesCommand}"/>
+        </StackPanel>
+
+        <!-- Column headers -->
+        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,12,0,4" FontWeight="Bold" Text="Available"/>
+        <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,12,0,4" FontWeight="Bold" Text="Installed"/>
+
+        <!-- Available releases -->
+        <ListBox Grid.Row="2" Grid.Column="0" ItemsSource="{Binding AvailableReleases}" SelectedItem="{Binding SelectedRelease}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="gh:ResolvedRelease">
+                    <StackPanel>
+                        <TextBlock Text="{Binding TagName}" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Channel}" Opacity="0.7" FontSize="11"/>
+                            <TextBlock Text="• incremental" FontSize="11" Foreground="#3a8" IsVisible="{Binding SupportsIncrementalUpdate}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Installed instances -->
+        <ListBox Grid.Row="2" Grid.Column="2" ItemsSource="{Binding InstalledInstances}" SelectedItem="{Binding SelectedInstance}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="inst:InstalledInstance">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Tag}" FontWeight="SemiBold"/>
+                        <TextBlock Text="not runnable" FontSize="11" Foreground="#c55" IsVisible="{Binding !IsRunnable}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Content="Install / Update" Command="{Binding InstallCommand}"/>
+        </StackPanel>
+        <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Content="Play" Command="{Binding PlayCommand}"/>
+            <Button Content="Delete" Command="{Binding DeleteCommand}"/>
+        </StackPanel>
+
+        <!-- Status + progress -->
+        <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0" Spacing="4">
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" IsIndeterminate="{Binding IsBusy}" Height="6"/>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</Window>

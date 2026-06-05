@@ -1,0 +1,15 @@
+## .NET / build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## Local launcher runtime data (never commit installed mods or caches)
+/Instances/
+/Cache/
+*.local.json

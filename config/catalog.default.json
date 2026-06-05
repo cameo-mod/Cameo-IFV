@@ -1,0 +1,48 @@
+{
+  "mods": [
+    {
+      "id": "cameo",
+      "displayName": "Cameo",
+      "launchExecutable": "CameoMod.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "cameo-mod/Cameo-mod",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": "-x64-winportable.zip.zsync"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "combined-arms",
+      "displayName": "Combined Arms",
+      "launchExecutable": "CombinedArms.exe",
+      "sources": [
+        {
+          "channel": "Stable",
+          "repository": "Inq8/CAmod",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        },
+        {
+          "channel": "Dev",
+          "repository": "darkademic/CAmod",
+          "assets": {
+            "windows": {
+              "assetSuffix": "-x64-winportable.zip",
+              "zsyncSuffix": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

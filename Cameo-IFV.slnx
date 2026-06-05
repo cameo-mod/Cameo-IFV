@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CameoIFV.App/CameoIFV.App.csproj" />
+    <Project Path="src/CameoIFV.Core/CameoIFV.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CameoIFV.Core.Tests/CameoIFV.Core.Tests.csproj" />
+  </Folder>
+</Solution>
