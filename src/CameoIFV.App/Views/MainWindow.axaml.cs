@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -18,7 +19,10 @@ public partial class MainWindow : Window
     {
         base.OnDataContextChanged(e);
         if (DataContext is MainWindowViewModel viewModel)
+        {
             viewModel.PickLibraryFolderAsync = PickLibraryFolderAsync;
+            viewModel.OpenFolder = OpenFolder;
+        }
     }
 
     private async Task<string?> PickLibraryFolderAsync(string? currentPath)
@@ -35,5 +39,17 @@ public partial class MainWindow : Window
         });
 
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
+    }
+
+    private static void OpenFolder(string path)
+    {
+        if (!Directory.Exists(path))
+            return;
+
+        using var _ = Process.Start(new ProcessStartInfo
+        {
+            FileName = path,
+            UseShellExecute = true,
+        });
     }
 }

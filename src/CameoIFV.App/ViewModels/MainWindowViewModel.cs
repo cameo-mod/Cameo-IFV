@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<ChannelOption> Channels { get; } = new();
     public ObservableCollection<ResolvedRelease> AvailableReleases { get; } = new();
     public ObservableCollection<InstalledInstance> InstalledInstances { get; } = new();
+    public ObservableCollection<string> LibraryRoots => _services.LibraryRoots;
 
     [ObservableProperty] private ModDefinition? _selectedMod;
     [ObservableProperty] private ChannelOption? _selectedChannel;
@@ -30,19 +31,24 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _deleteButtonText = "Delete";
-    [ObservableProperty] private string _libraryRootText;
+    [ObservableProperty] private string _removeLibraryButtonText = "Remove path";
+    [ObservableProperty] private string? _selectedLibraryRoot;
 
     private string? _pendingDeleteTag;
     private int _deleteConfirmationVersion;
+    private string? _pendingRemoveLibraryRoot;
+    private int _removeLibraryConfirmationVersion;
+    private bool _suppressLibrarySelectionSwitch;
 
     public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
+    public Action<string>? OpenFolder { get; set; }
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
     public MainWindowViewModel(LauncherServices services)
     {
         _services = services;
-        _libraryRootText = _services.LibraryRoot;
+        _selectedLibraryRoot = _services.LibraryRoot;
         foreach (var mod in _services.Catalog.Mods)
             Mods.Add(mod);
         SelectedMod = Mods.FirstOrDefault();
@@ -86,9 +92,15 @@ public partial class MainWindowViewModel : ViewModelBase
         NotifyCommandStatesChanged();
     }
 
-    partial void OnLibraryRootTextChanged(string value)
+    partial void OnSelectedLibraryRootChanged(string? value)
     {
-        ApplyLibraryRootCommand.NotifyCanExecuteChanged();
+        ClearPendingRemoveLibrary();
+        if (_suppressLibrarySelectionSwitch)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(value) && !StringComparer.OrdinalIgnoreCase.Equals(value, _services.LibraryRoot))
+            SwitchLibraryRoot(value);
+        RemoveLibraryCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanRefreshReleases))]
@@ -216,8 +228,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool CanDelete() => SelectedInstance is not null && !IsBusy;
 
-    [RelayCommand(CanExecute = nameof(CanBrowseLibrary))]
-    private async Task BrowseLibraryAsync()
+    [RelayCommand(CanExecute = nameof(CanAddLibrary))]
+    private async Task AddLibraryAsync()
     {
         if (PickLibraryFolderAsync is null)
         {
@@ -225,39 +237,81 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var picked = await PickLibraryFolderAsync(LibraryRootText);
+        var picked = await PickLibraryFolderAsync(SelectedLibraryRoot);
         if (!string.IsNullOrWhiteSpace(picked))
-            LibraryRootText = picked;
+            SwitchLibraryRoot(picked);
     }
 
-    private bool CanBrowseLibrary() => !IsBusy;
+    private bool CanAddLibrary() => !IsBusy;
 
-    [RelayCommand(CanExecute = nameof(CanApplyLibraryRoot))]
-    private void ApplyLibraryRoot()
+    [RelayCommand(CanExecute = nameof(CanRemoveLibrary))]
+    private void RemoveLibrary()
     {
-        var libraryRoot = LibraryRootText.Trim();
+        if (string.IsNullOrWhiteSpace(SelectedLibraryRoot) || IsBusy)
+            return;
+
+        if (_pendingRemoveLibraryRoot is null ||
+            !StringComparer.OrdinalIgnoreCase.Equals(_pendingRemoveLibraryRoot, SelectedLibraryRoot))
+        {
+            _pendingRemoveLibraryRoot = SelectedLibraryRoot;
+            RemoveLibraryButtonText = "Confirm Remove";
+            Status = $"Click Confirm Remove within 5 seconds to forget {SelectedLibraryRoot}. Files will not be deleted.";
+            ExpireRemoveLibraryConfirmationAfterDelay(SelectedLibraryRoot, ++_removeLibraryConfirmationVersion);
+            return;
+        }
+
+        try
+        {
+            var removed = SelectedLibraryRoot;
+            var wasActive = StringComparer.OrdinalIgnoreCase.Equals(removed, _services.LibraryRoot);
+            _services.RemoveLibraryRoot(removed);
+            _suppressLibrarySelectionSwitch = true;
+            try
+            {
+                SelectedLibraryRoot = _services.LibraryRoot;
+            }
+            finally
+            {
+                _suppressLibrarySelectionSwitch = false;
+            }
+            RefreshInstalled();
+            ClearPendingRemoveLibrary();
+            NotifyCommandStatesChanged();
+            Status = wasActive
+                ? $"Forgot {removed}. Active library switched to {_services.LibraryRoot}. Files were not deleted."
+                : $"Forgot {removed}. Files were not deleted.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Failed to remove library path: {ex.Message}";
+        }
+    }
+
+    private bool CanRemoveLibrary() => !IsBusy && !string.IsNullOrWhiteSpace(SelectedLibraryRoot);
+
+    private void SwitchLibraryRoot(string libraryRoot)
+    {
+        libraryRoot = libraryRoot.Trim();
         if (string.IsNullOrWhiteSpace(libraryRoot))
             return;
 
         try
         {
             ClearPendingDelete();
+            var previousRoot = _services.LibraryRoot;
             _services.SetLibraryRoot(libraryRoot);
-            LibraryRootText = _services.LibraryRoot;
+            SelectedLibraryRoot = _services.LibraryRoot;
             RefreshInstalled();
             NotifyCommandStatesChanged();
-            Status = $"Library location set to {_services.LibraryRoot}.";
+            if (!StringComparer.OrdinalIgnoreCase.Equals(previousRoot, _services.LibraryRoot))
+                OpenFolder?.Invoke(previousRoot);
+            Status = $"Library location set to {_services.LibraryRoot}. Previous installs remain in {previousRoot}; move or reinstall them if needed.";
         }
         catch (Exception ex)
         {
             Status = $"Failed to set library location: {ex.Message}";
         }
     }
-
-    private bool CanApplyLibraryRoot()
-        => !IsBusy
-           && !string.IsNullOrWhiteSpace(LibraryRootText)
-           && !StringComparer.OrdinalIgnoreCase.Equals(LibraryRootText.Trim(), _services.LibraryRoot);
 
     private void RefreshInstalled()
     {
@@ -288,6 +342,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ClearPendingDelete();
         Status = $"Delete confirmation expired for {tag}.";
+    }
+
+    private void ClearPendingRemoveLibrary()
+    {
+        _pendingRemoveLibraryRoot = null;
+        _removeLibraryConfirmationVersion++;
+        RemoveLibraryButtonText = "Remove path";
+    }
+
+    private async void ExpireRemoveLibraryConfirmationAfterDelay(string libraryRoot, int version)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        if (_removeLibraryConfirmationVersion != version ||
+            !StringComparer.OrdinalIgnoreCase.Equals(_pendingRemoveLibraryRoot, libraryRoot))
+            return;
+
+        ClearPendingRemoveLibrary();
+        Status = $"Remove path confirmation expired for {libraryRoot}.";
     }
 
     private static string FormatInstallStatus(string tagName, InstallProgress progress)
@@ -332,7 +404,7 @@ public partial class MainWindowViewModel : ViewModelBase
         InstallCommand.NotifyCanExecuteChanged();
         PlayCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
-        BrowseLibraryCommand.NotifyCanExecuteChanged();
-        ApplyLibraryRootCommand.NotifyCanExecuteChanged();
+        AddLibraryCommand.NotifyCanExecuteChanged();
+        RemoveLibraryCommand.NotifyCanExecuteChanged();
     }
 }

@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using CameoIFV.Core.Config;
 using CameoIFV.Core.Github;
@@ -25,6 +28,7 @@ public sealed class LauncherServices
     public InstallOrchestrator Installer { get; private set; }
     public InstanceManager Instances { get; private set; }
     public LauncherPaths Paths { get; private set; }
+    public ObservableCollection<string> LibraryRoots { get; } = new();
     public string LibraryRoot => Paths.Root;
 
     /// <summary>Active platform key used to select per-OS assets from the catalog.</summary>
@@ -42,6 +46,7 @@ public sealed class LauncherServices
         var settings = _settingsStore.Load();
         Paths = new LauncherPaths(_settingsStore.ResolveLibraryRoot(settings), _settingsStore.SettingsDir);
         Paths.EnsureBaseDirs();
+        SetKnownLibraryRoots(_settingsStore.ResolveKnownLibraryRoots(settings));
 
         Catalog = LoadCatalog();
         ReleaseProvider = new GitHubReleaseProvider(_http, new ETagStore(Paths.ETagCacheFile));
@@ -56,9 +61,45 @@ public sealed class LauncherServices
         var paths = new LauncherPaths(resolved, _settingsStore.SettingsDir);
         paths.EnsureBaseDirs();
 
-        _settingsStore.Save(new LauncherSettings(resolved));
+        var roots = LibraryRoots
+            .Append(resolved)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _settingsStore.Save(new LauncherSettings(resolved, roots));
         Paths = paths;
         (Installer, Instances) = CreateInstallServices(Paths);
+        SetKnownLibraryRoots(roots);
+    }
+
+    public void RemoveLibraryRoot(string libraryRoot)
+    {
+        var removed = Path.GetFullPath(Environment.ExpandEnvironmentVariables(libraryRoot));
+        var roots = LibraryRoots
+            .Where(root => !StringComparer.OrdinalIgnoreCase.Equals(root, removed))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (roots.Count == 0)
+            roots.Add(LauncherPaths.DefaultRoot());
+
+        var activeRoot = StringComparer.OrdinalIgnoreCase.Equals(LibraryRoot, removed)
+            ? roots[0]
+            : LibraryRoot;
+
+        var paths = new LauncherPaths(activeRoot, _settingsStore.SettingsDir);
+        paths.EnsureBaseDirs();
+
+        _settingsStore.Save(new LauncherSettings(activeRoot, roots.ToArray()));
+        Paths = paths;
+        (Installer, Instances) = CreateInstallServices(Paths);
+        SetKnownLibraryRoots(roots);
+    }
+
+    private void SetKnownLibraryRoots(IEnumerable<string> roots)
+    {
+        LibraryRoots.Clear();
+        foreach (var root in roots.Select(r => Path.GetFullPath(Environment.ExpandEnvironmentVariables(r))).Distinct(StringComparer.OrdinalIgnoreCase))
+            LibraryRoots.Add(root);
     }
 
     private (InstallOrchestrator Installer, InstanceManager Instances) CreateInstallServices(LauncherPaths paths)
