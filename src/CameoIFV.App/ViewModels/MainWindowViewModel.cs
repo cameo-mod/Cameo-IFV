@@ -32,6 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _deleteButtonText = "Delete";
 
     private string? _pendingDeleteTag;
+    private int _deleteConfirmationVersion;
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
@@ -166,7 +167,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _pendingDeleteTag = SelectedInstance.Tag;
             DeleteButtonText = "Confirm Delete";
-            Status = $"Click Confirm Delete to remove {SelectedInstance.Tag}.";
+            Status = $"Click Confirm Delete within 5 seconds to remove {SelectedInstance.Tag}.";
+            ExpireDeleteConfirmationAfterDelay(SelectedInstance.Tag, ++_deleteConfirmationVersion);
             return;
         }
 
@@ -198,7 +200,18 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ClearPendingDelete()
     {
         _pendingDeleteTag = null;
+        _deleteConfirmationVersion++;
         DeleteButtonText = "Delete";
+    }
+
+    private async void ExpireDeleteConfirmationAfterDelay(string tag, int version)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        if (_deleteConfirmationVersion != version || _pendingDeleteTag != tag)
+            return;
+
+        ClearPendingDelete();
+        Status = $"Delete confirmation expired for {tag}.";
     }
 
     private static string FormatInstallStatus(string tagName, InstallProgress progress)
