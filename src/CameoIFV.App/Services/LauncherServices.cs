@@ -97,9 +97,24 @@ public sealed class LauncherServices
 
     private void SetKnownLibraryRoots(IEnumerable<string> roots)
     {
-        LibraryRoots.Clear();
-        foreach (var root in roots.Select(r => Path.GetFullPath(Environment.ExpandEnvironmentVariables(r))).Distinct(StringComparer.OrdinalIgnoreCase))
-            LibraryRoots.Add(root);
+        var normalized = roots
+            .Select(r => Path.GetFullPath(Environment.ExpandEnvironmentVariables(r)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Reconcile in place rather than Clear()+Add(): clearing the bound collection transiently
+        // drops the ComboBox selection, which left the library dropdown blank after a switch.
+        for (var i = LibraryRoots.Count - 1; i >= 0; i--)
+        {
+            if (!normalized.Contains(LibraryRoots[i], StringComparer.OrdinalIgnoreCase))
+                LibraryRoots.RemoveAt(i);
+        }
+
+        foreach (var root in normalized)
+        {
+            if (!LibraryRoots.Contains(root, StringComparer.OrdinalIgnoreCase))
+                LibraryRoots.Add(root);
+        }
     }
 
     private (InstallOrchestrator Installer, InstanceManager Instances) CreateInstallServices(LauncherPaths paths)

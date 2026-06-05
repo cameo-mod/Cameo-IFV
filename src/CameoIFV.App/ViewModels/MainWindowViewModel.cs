@@ -41,7 +41,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _suppressLibrarySelectionSwitch;
 
     public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
-    public Action<string>? OpenFolder { get; set; }
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
@@ -300,11 +299,19 @@ public partial class MainWindowViewModel : ViewModelBase
             ClearPendingDelete();
             var previousRoot = _services.LibraryRoot;
             _services.SetLibraryRoot(libraryRoot);
-            SelectedLibraryRoot = _services.LibraryRoot;
+            // Re-assert the active root as the dropdown selection without re-triggering a switch,
+            // so the ComboBox shows the current library instead of going blank after the list updates.
+            _suppressLibrarySelectionSwitch = true;
+            try
+            {
+                SelectedLibraryRoot = _services.LibraryRoot;
+            }
+            finally
+            {
+                _suppressLibrarySelectionSwitch = false;
+            }
             RefreshInstalled();
             NotifyCommandStatesChanged();
-            if (!StringComparer.OrdinalIgnoreCase.Equals(previousRoot, _services.LibraryRoot))
-                OpenFolder?.Invoke(previousRoot);
             Status = $"Library location set to {_services.LibraryRoot}. Previous installs remain in {previousRoot}; move or reinstall them if needed.";
         }
         catch (Exception ex)
