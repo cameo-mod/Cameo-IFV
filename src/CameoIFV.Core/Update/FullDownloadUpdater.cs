@@ -10,6 +10,8 @@ public sealed class FullDownloadUpdater : IUpdater
 
     public FullDownloadUpdater(HttpClient http) => _http = http;
 
+    public UpdateMode Mode => UpdateMode.FullDownload;
+
     public async Task UpdateAsync(UpdatePlan plan, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
     {
         using var response = await _http.GetAsync(plan.AssetUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

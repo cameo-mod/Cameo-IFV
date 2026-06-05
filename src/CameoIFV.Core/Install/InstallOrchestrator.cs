@@ -15,7 +15,7 @@ public enum InstallPhase
     Done,
 }
 
-public readonly record struct InstallProgress(InstallPhase Phase, long BytesTransferred, long TotalBytes)
+public readonly record struct InstallProgress(InstallPhase Phase, long BytesTransferred, long TotalBytes, UpdateMode UpdateMode)
 {
     public double Fraction => TotalBytes > 0 ? (double)BytesTransferred / TotalBytes : 0;
 }
@@ -54,7 +54,7 @@ public sealed class InstallOrchestrator
         // 1. Assemble the target zip (zsync incremental or full download).
         var dlProgress = progress is null
             ? null
-            : new Progress<UpdateProgress>(p => progress.Report(new InstallProgress(InstallPhase.Downloading, p.BytesTransferred, p.TotalBytes)));
+            : new Progress<UpdateProgress>(p => progress.Report(new InstallProgress(InstallPhase.Downloading, p.BytesTransferred, p.TotalBytes, updater.Mode)));
         await updater.UpdateAsync(plan, dlProgress, cancellationToken);
 
         var instanceDir = _paths.InstanceDir(mod.Id, release.TagName);
@@ -63,11 +63,11 @@ public sealed class InstallOrchestrator
         try
         {
             // 2. Verify the assembled zip is structurally valid before we trust it.
-            progress?.Report(new InstallProgress(InstallPhase.Verifying, 0, 0));
+            progress?.Report(new InstallProgress(InstallPhase.Verifying, 0, 0, updater.Mode));
             VerifyZip(plan.OutputZipPath);
 
             // 3. Extract into a staging directory, then swap into place only after extraction succeeds.
-            progress?.Report(new InstallProgress(InstallPhase.Extracting, 0, 0));
+            progress?.Report(new InstallProgress(InstallPhase.Extracting, 0, 0, updater.Mode));
             TryDeleteDir(stagingDir);
             Directory.CreateDirectory(stagingDir);
             ZipFile.ExtractToDirectory(plan.OutputZipPath, stagingDir);
@@ -76,7 +76,7 @@ public sealed class InstallOrchestrator
             SwapIntoPlace(stagingDir, instanceDir);
 
             // 4. Promote the assembled zip to the seed slot for the next update's diff.
-            progress?.Report(new InstallProgress(InstallPhase.Finalizing, 0, 0));
+            progress?.Report(new InstallProgress(InstallPhase.Finalizing, 0, 0, updater.Mode));
             var seed = _planner.SeedSlotFor(mod.Id, release.Channel);
             Directory.CreateDirectory(Path.GetDirectoryName(seed)!);
             File.Move(plan.OutputZipPath, seed, overwrite: true);
@@ -84,7 +84,7 @@ public sealed class InstallOrchestrator
             var exe = stagedExe is null
                 ? null
                 : Path.Combine(instanceDir, Path.GetRelativePath(stagingDir, stagedExe));
-            progress?.Report(new InstallProgress(InstallPhase.Done, 0, 0));
+            progress?.Report(new InstallProgress(InstallPhase.Done, 0, 0, updater.Mode));
             return new InstallResult(instanceDir, exe);
         }
         catch

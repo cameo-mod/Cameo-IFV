@@ -17,6 +17,8 @@ public class InstallOrchestratorTests
         private readonly byte[] _zipBytes;
         public FakeUpdater(byte[] zipBytes) => _zipBytes = zipBytes;
 
+        public UpdateMode Mode => UpdateMode.FullDownload;
+
         public IUpdater ForPlan(UpdatePlan plan) => this;
 
         public async Task UpdateAsync(UpdatePlan plan, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)

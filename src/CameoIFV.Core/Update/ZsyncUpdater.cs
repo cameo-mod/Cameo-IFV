@@ -16,6 +16,8 @@ public sealed class ZsyncUpdater : IUpdater
 
     public ZsyncUpdater(HttpClient http) => _http = http;
 
+    public UpdateMode Mode => UpdateMode.IncrementalZsync;
+
     public async Task UpdateAsync(UpdatePlan plan, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
     {
         if (plan.ZsyncUrl is null)

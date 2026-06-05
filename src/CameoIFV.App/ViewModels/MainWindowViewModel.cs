@@ -7,6 +7,7 @@ using CameoIFV.App.Services;
 using CameoIFV.Core.Github;
 using CameoIFV.Core.Install;
 using CameoIFV.Core.Model;
+using CameoIFV.Core.Update;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -28,6 +29,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _status = "Ready";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _deleteButtonText = "Delete";
+
+    private string? _pendingDeleteTag;
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
@@ -56,6 +60,11 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedChannelChanged(ChannelOption? value)
     {
         _ = RefreshReleasesAsync();
+    }
+
+    partial void OnSelectedInstanceChanged(InstalledInstance? value)
+    {
+        ClearPendingDelete();
     }
 
     [RelayCommand]
@@ -98,6 +107,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var mod = SelectedMod;
         var release = SelectedRelease;
 
+        ClearPendingDelete();
         IsBusy = true;
         Progress = 0;
         try
@@ -105,9 +115,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var progress = new Progress<InstallProgress>(p =>
             {
                 Progress = p.Fraction * 100;
-                Status = p.TotalBytes > 0
-                    ? $"{p.Phase}: {release.TagName} ({Progress:F0}%)"
-                    : $"{p.Phase}: {release.TagName}...";
+                Status = FormatInstallStatus(release.TagName, p);
             });
 
             var result = await Task.Run(
@@ -136,6 +144,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedInstance is null)
             return;
 
+        ClearPendingDelete();
         try
         {
             _services.Instances.Launch(SelectedInstance);
@@ -153,10 +162,19 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedInstance is null || IsBusy)
             return;
 
+        if (_pendingDeleteTag != SelectedInstance.Tag)
+        {
+            _pendingDeleteTag = SelectedInstance.Tag;
+            DeleteButtonText = "Confirm Delete";
+            Status = $"Click Confirm Delete to remove {SelectedInstance.Tag}.";
+            return;
+        }
+
         try
         {
             _services.Instances.Delete(SelectedInstance);
             Status = $"Deleted {SelectedInstance.Tag}.";
+            ClearPendingDelete();
             RefreshInstalled();
         }
         catch (Exception ex)
@@ -175,5 +193,47 @@ public partial class MainWindowViewModel : ViewModelBase
             InstalledInstances.Add(instance);
 
         SelectedInstance = InstalledInstances.FirstOrDefault();
+    }
+
+    private void ClearPendingDelete()
+    {
+        _pendingDeleteTag = null;
+        DeleteButtonText = "Delete";
+    }
+
+    private static string FormatInstallStatus(string tagName, InstallProgress progress)
+    {
+        var mode = FormatUpdateMode(progress.UpdateMode);
+        if (progress.Phase != InstallPhase.Downloading)
+            return $"{progress.Phase}: {tagName} ({mode})...";
+
+        if (progress.TotalBytes <= 0)
+            return $"Downloading: {tagName} ({mode})...";
+
+        var transferred = FormatBytes(progress.BytesTransferred);
+        var total = FormatBytes(progress.TotalBytes);
+        var verb = progress.UpdateMode == UpdateMode.IncrementalZsync ? "fetched" : "downloaded";
+        return $"Downloading: {tagName} ({mode}, {verb} {transferred} of {total}, {progress.Fraction * 100:F0}%)";
+    }
+
+    private static string FormatUpdateMode(UpdateMode mode) => mode switch
+    {
+        UpdateMode.IncrementalZsync => "incremental zsync",
+        _ => "full download",
+    };
+
+    private static string FormatBytes(long bytes)
+    {
+        const double kib = 1024;
+        const double mib = kib * 1024;
+        const double gib = mib * 1024;
+
+        return bytes switch
+        {
+            >= (long)gib => $"{bytes / gib:F2} GB",
+            >= (long)mib => $"{bytes / mib:F1} MB",
+            >= (long)kib => $"{bytes / kib:F0} KB",
+            _ => $"{bytes} B",
+        };
     }
 }

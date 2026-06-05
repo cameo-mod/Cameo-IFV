@@ -32,11 +32,19 @@ public readonly record struct UpdateProgress(long BytesTransferred, long TotalBy
     public double Fraction => TotalBytes > 0 ? (double)BytesTransferred / TotalBytes : 0;
 }
 
+public enum UpdateMode
+{
+    FullDownload,
+    IncrementalZsync,
+}
+
 /// <summary>
 /// Produces the target release zip, transferring as few bytes as possible. Implementations:
 /// zsync (incremental, when a control file + seed are available) and full-download (fallback).
 /// </summary>
 public interface IUpdater
 {
+    UpdateMode Mode { get; }
+
     Task UpdateAsync(UpdatePlan plan, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken);
 }
