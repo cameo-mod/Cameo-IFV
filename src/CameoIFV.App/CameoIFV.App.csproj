@@ -10,6 +10,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <None Include="..\..\config\catalog.default.json" Link="catalog.default.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="PackageREADME.txt" Link="README.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

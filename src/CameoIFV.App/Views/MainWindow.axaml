@@ -11,6 +11,7 @@
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Width="760" Height="520"
+        WindowStartupLocation="CenterScreen"
         Title="Cameo-IFV">
 
     <Design.DataContext>
