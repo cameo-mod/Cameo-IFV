@@ -39,6 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string? _pendingRemoveLibraryRoot;
     private int _removeLibraryConfirmationVersion;
     private bool _suppressLibrarySelectionSwitch;
+    private CancellationTokenSource? _installCancellation;
 
     public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
 
@@ -50,6 +51,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _selectedLibraryRoot = _services.LibraryRoot;
         foreach (var mod in _services.Catalog.Mods)
             Mods.Add(mod);
+
+        if (_services.LastCleanupResult.TotalDeleted > 0)
+            Status = $"Cleaned {_services.LastCleanupResult.TotalDeleted} interrupted install item(s).";
 
         SelectedMod = FindPreferredMod() ?? Mods.FirstOrDefault();
     }
@@ -175,6 +179,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ClearPendingDelete();
         IsBusy = true;
         Progress = 0;
+        _installCancellation = new CancellationTokenSource();
+        CancelInstallCommand.NotifyCanExecuteChanged();
         try
         {
             var progress = new Progress<InstallProgress>(p =>
@@ -183,14 +189,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 Status = FormatInstallStatus(release.TagName, p);
             });
 
+            var token = _installCancellation.Token;
             var result = await Task.Run(
-                () => _services.Installer.InstallAsync(mod, release, progress, CancellationToken.None),
-                CancellationToken.None);
+                () => _services.Installer.InstallAsync(mod, release, progress, token),
+                token);
             RefreshInstalled();
             SelectedInstance = InstalledInstances.FirstOrDefault(i => i.Tag == release.TagName);
             Status = result.ExecutablePath is null
                 ? $"Installed {release.TagName} (no executable found)."
                 : $"Installed {release.TagName}.";
+        }
+        catch (OperationCanceledException)
+        {
+            Status = $"Install canceled for {release.TagName}.";
         }
         catch (Exception ex)
         {
@@ -198,12 +209,25 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            _installCancellation?.Dispose();
+            _installCancellation = null;
             Progress = 0;
             IsBusy = false;
+            CancelInstallCommand.NotifyCanExecuteChanged();
         }
     }
 
     private bool CanInstall() => SelectedMod is not null && SelectedRelease is not null && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanCancelInstall))]
+    private void CancelInstall()
+    {
+        _installCancellation?.Cancel();
+        Status = "Canceling install...";
+        CancelInstallCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanCancelInstall() => IsBusy && _installCancellation is { IsCancellationRequested: false };
 
     [RelayCommand(CanExecute = nameof(CanPlay))]
     private void Play()
@@ -441,5 +465,6 @@ public partial class MainWindowViewModel : ViewModelBase
         DeleteCommand.NotifyCanExecuteChanged();
         AddLibraryCommand.NotifyCanExecuteChanged();
         RemoveLibraryCommand.NotifyCanExecuteChanged();
+        CancelInstallCommand.NotifyCanExecuteChanged();
     }
 }

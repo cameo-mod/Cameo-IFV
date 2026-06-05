@@ -32,4 +32,44 @@ public class LauncherPathsTests
         Assert.Equal(Path.Combine(libraryRoot, "seeds", "cameo", "stable.zip"), paths.SeedZip("cameo", ReleaseChannel.Stable));
         Assert.Equal(Path.Combine(libraryRoot, "instances", "cameo", "playtest_2026_06_05"), paths.InstanceDir("cameo", "playtest:2026/06/05"));
     }
+
+    [Fact]
+    public void Cleanup_RemovesInterruptedInstallScratchOnly()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ifv-cleanup-{Guid.NewGuid():N}");
+        var paths = new LauncherPaths(root);
+        paths.EnsureBaseDirs();
+
+        var partial = Path.Combine(paths.DownloadsDir, "cameo-stable-playtest.zip.part");
+        File.WriteAllText(partial, "partial");
+
+        var staging = Path.Combine(paths.InstancesDir, "cameo", "playtest.staging-abc");
+        Directory.CreateDirectory(staging);
+        File.WriteAllText(Path.Combine(staging, "temp.txt"), "temp");
+
+        var backup = Path.Combine(paths.InstancesDir, "cameo", "playtest.backup-def");
+        Directory.CreateDirectory(backup);
+        File.WriteAllText(Path.Combine(backup, "old.txt"), "old");
+
+        var installed = paths.InstanceDir("cameo", "playtest");
+        Directory.CreateDirectory(installed);
+        File.WriteAllText(Path.Combine(installed, "CameoMod.exe"), "MZ");
+
+        var seed = paths.SeedZip("cameo", ReleaseChannel.Stable);
+        Directory.CreateDirectory(Path.GetDirectoryName(seed)!);
+        File.WriteAllText(seed, "seed");
+
+        var result = LibraryCleanup.CleanInterruptedInstalls(paths);
+
+        Assert.Equal(1, result.PartialDownloadsDeleted);
+        Assert.Equal(1, result.StagingDirectoriesDeleted);
+        Assert.Equal(1, result.BackupDirectoriesDeleted);
+        Assert.False(File.Exists(partial));
+        Assert.False(Directory.Exists(staging));
+        Assert.False(Directory.Exists(backup));
+        Assert.True(Directory.Exists(installed));
+        Assert.True(File.Exists(seed));
+
+        Directory.Delete(root, recursive: true);
+    }
 }

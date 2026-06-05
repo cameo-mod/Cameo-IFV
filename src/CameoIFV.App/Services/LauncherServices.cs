@@ -31,6 +31,7 @@ public sealed class LauncherServices
     public LauncherPaths Paths { get; private set; }
     public ObservableCollection<string> LibraryRoots { get; } = new();
     public string LibraryRoot => Paths.Root;
+    public LibraryCleanupResult LastCleanupResult { get; private set; } = new(0, 0, 0);
 
     /// <summary>Active platform key used to select per-OS assets from the catalog.</summary>
     public string Platform { get; } = OperatingSystem.IsWindows() ? "windows"
@@ -46,7 +47,7 @@ public sealed class LauncherServices
         _settingsStore = new LauncherSettingsStore();
         _settings = _settingsStore.Load();
         Paths = new LauncherPaths(_settingsStore.ResolveLibraryRoot(_settings), _settingsStore.SettingsDir);
-        Paths.EnsureBaseDirs();
+        LastCleanupResult = LibraryCleanup.CleanInterruptedInstalls(Paths);
         SetKnownLibraryRoots(_settingsStore.ResolveKnownLibraryRoots(_settings));
 
         Catalog = LoadCatalog();
@@ -60,7 +61,7 @@ public sealed class LauncherServices
     {
         var resolved = Path.GetFullPath(Environment.ExpandEnvironmentVariables(libraryRoot));
         var paths = new LauncherPaths(resolved, _settingsStore.SettingsDir);
-        paths.EnsureBaseDirs();
+        LastCleanupResult = LibraryCleanup.CleanInterruptedInstalls(paths);
 
         var roots = LibraryRoots
             .Append(resolved)
@@ -88,7 +89,7 @@ public sealed class LauncherServices
             : LibraryRoot;
 
         var paths = new LauncherPaths(activeRoot, _settingsStore.SettingsDir);
-        paths.EnsureBaseDirs();
+        LastCleanupResult = LibraryCleanup.CleanInterruptedInstalls(paths);
 
         SaveSettings(_settings with { LibraryRoot = activeRoot, LibraryRoots = roots.ToArray() });
         Paths = paths;

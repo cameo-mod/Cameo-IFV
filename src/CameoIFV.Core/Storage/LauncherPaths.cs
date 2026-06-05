@@ -30,11 +30,13 @@ public sealed class LauncherPaths
 
     public string DownloadsDir => Path.Combine(Root, "downloads");
 
+    public string InstancesDir => Path.Combine(Root, "instances");
+
     public string SeedZip(string modId, ReleaseChannel channel)
         => Path.Combine(Root, "seeds", modId, $"{channel}.zip".ToLowerInvariant());
 
     public string InstanceDir(string modId, string tag)
-        => Path.Combine(Root, "instances", modId, SanitizeTag(tag));
+        => Path.Combine(InstancesDir, modId, SanitizeTag(tag));
 
     public void EnsureBaseDirs()
     {
