@@ -60,7 +60,7 @@
                     <StackPanel>
                         <TextBlock Text="{Binding TagName}" FontWeight="SemiBold"/>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding Channel}" Opacity="0.7" FontSize="11"/>
+                            <TextBlock Text="{Binding TimelineLabel}" Opacity="0.7" FontSize="11"/>
                             <TextBlock Text="• incremental" FontSize="11" Foreground="#3a8" IsVisible="{Binding SupportsIncrementalUpdate}"/>
                         </StackPanel>
                     </StackPanel>
