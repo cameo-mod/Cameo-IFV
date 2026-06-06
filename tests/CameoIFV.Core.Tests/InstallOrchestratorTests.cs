@@ -97,6 +97,11 @@ public class InstallOrchestratorTests
             var one = Assert.Single(installed);
             Assert.Equal("playtest-20260601", one.Tag);
             Assert.True(one.IsRunnable);
+            Assert.NotNull(one.Metadata);
+            Assert.Equal(mod.DisplayName, one.Metadata.ModDisplayName);
+            Assert.Equal(release.TagName, one.Metadata.Tag);
+            Assert.Equal(release.Channel, one.Metadata.Channel);
+            Assert.Equal(release.AssetUrl.ToString(), one.Metadata.AssetUrl);
         }
         finally
         {

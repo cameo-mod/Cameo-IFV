@@ -29,6 +29,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private ResolvedRelease? _selectedRelease;
     [ObservableProperty] private InstalledInstance? _selectedInstance;
     [ObservableProperty] private string _status = "Ready";
+    [ObservableProperty] private string _sessionLog = string.Empty;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _deleteButtonText = "Delete";
@@ -52,7 +53,12 @@ public partial class MainWindowViewModel : ViewModelBase
             Mods.Add(mod);
 
         if (_services.LastCleanupResult.TotalDeleted > 0)
+        {
             Status = $"Cleaned {_services.LastCleanupResult.TotalDeleted} interrupted install item(s).";
+            AppendSessionLog(Status);
+        }
+
+        AppendSessionLog($"Session started. Library root: {_services.LibraryRoot}");
 
         SelectedMod = FindPreferredMod() ?? Mods.FirstOrDefault();
     }
@@ -117,6 +123,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsBusy = true;
         Status = $"Checking {SelectedChannel.Label}…";
+        AppendSessionLog($"Refreshing releases for {SelectedMod.DisplayName} / {SelectedChannel.Label}.");
         try
         {
             AvailableReleases.Clear();
@@ -129,10 +136,12 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = AvailableReleases.Count > 0
                 ? $"{AvailableReleases.Count} release(s) available."
                 : "No releases found.";
+            AppendSessionLog(Status);
         }
         catch (Exception ex)
         {
             Status = $"Failed to list releases: {ex.Message}";
+            AppendSessionLog(Status);
         }
         finally
         {
@@ -176,6 +185,15 @@ public partial class MainWindowViewModel : ViewModelBase
         var release = SelectedRelease;
 
         ClearPendingDelete();
+        AppendSessionLog($"""
+        Install requested.
+        Mod: {mod.DisplayName}
+        Version: {release.TagName}
+        Channel: {release.Channel}
+        Asset: {release.AssetName}
+        Download URL: {release.AssetUrl}
+        Zsync URL: {release.ZsyncUrl?.ToString() ?? "(none)"}
+        """);
         IsBusy = true;
         Progress = 0;
         _installCancellation = new CancellationTokenSource();
@@ -186,6 +204,8 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 Progress = p.Fraction * 100;
                 Status = FormatInstallStatus(release.TagName, p);
+                if (!string.IsNullOrWhiteSpace(p.Detail))
+                    AppendSessionLog(p.Detail);
             });
 
             var token = _installCancellation.Token;
@@ -197,14 +217,17 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = result.ExecutablePath is null
                 ? $"Installed {release.TagName} (no executable found)."
                 : $"Installed {release.TagName}.";
+            AppendSessionLog(Status);
         }
         catch (OperationCanceledException)
         {
             Status = $"Install canceled for {release.TagName}.";
+            AppendSessionLog(Status);
         }
         catch (Exception ex)
         {
             Status = $"Install failed: {ex.Message}";
+            AppendSessionLog(Status);
         }
         finally
         {
@@ -223,6 +246,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _installCancellation?.Cancel();
         Status = "Canceling install...";
+        AppendSessionLog(Status);
         CancelInstallCommand.NotifyCanExecuteChanged();
     }
 
@@ -235,14 +259,17 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
 
         ClearPendingDelete();
+        AppendSessionLog(FormatPlayLog(SelectedMod, SelectedInstance));
         try
         {
             _services.Instances.Launch(SelectedInstance);
             Status = $"Launched {SelectedInstance.Tag}.";
+            AppendSessionLog(Status);
         }
         catch (Exception ex)
         {
             Status = $"Launch failed: {ex.Message}";
+            AppendSessionLog(Status);
         }
     }
 
@@ -268,12 +295,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _services.Instances.Delete(SelectedInstance);
             Status = $"Deleted {SelectedInstance.Tag}.";
+            AppendSessionLog(Status);
             ClearPendingDelete();
             RefreshInstalled();
         }
         catch (Exception ex)
         {
             Status = $"Delete failed: {ex.Message}";
+            AppendSessionLog(Status);
         }
     }
 
@@ -285,6 +314,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (PickLibraryFolderAsync is null)
         {
             Status = "Folder picker is not available.";
+            AppendSessionLog(Status);
             return;
         }
 
@@ -331,10 +361,12 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = wasActive
                 ? $"Forgot {removed}. Active library switched to {_services.LibraryRoot}. Files were not deleted."
                 : $"Forgot {removed}. Files were not deleted.";
+            AppendSessionLog(Status);
         }
         catch (Exception ex)
         {
             Status = $"Failed to remove library path: {ex.Message}";
+            AppendSessionLog(Status);
         }
     }
 
@@ -365,10 +397,17 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshInstalled();
             NotifyCommandStatesChanged();
             Status = $"Library location set to {_services.LibraryRoot}. Previous installs remain in {previousRoot}; move or reinstall them if needed.";
+            AppendSessionLog($"""
+            Library location changed.
+            Previous library: {previousRoot}
+            Active library: {_services.LibraryRoot}
+            Previous installs remain in the previous library unless moved or reinstalled.
+            """);
         }
         catch (Exception ex)
         {
             Status = $"Failed to set library location: {ex.Message}";
+            AppendSessionLog(Status);
         }
     }
 
@@ -400,6 +439,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ClearPendingDelete();
         Status = $"Delete confirmation expired for {tag}.";
+        AppendSessionLog(Status);
     }
 
     private void ClearPendingRemoveLibrary()
@@ -416,6 +456,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ClearPendingRemoveLibrary();
         Status = $"Remove path confirmation expired for {libraryRoot}.";
+        AppendSessionLog(Status);
     }
 
     private static string FormatInstallStatus(string tagName, InstallProgress progress)
@@ -452,6 +493,31 @@ public partial class MainWindowViewModel : ViewModelBase
             >= (long)kib => $"{bytes / kib:F0} KB",
             _ => $"{bytes} B",
         };
+    }
+
+    private void AppendSessionLog(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        var entry = $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}] {message.Trim()}";
+        SessionLog = string.IsNullOrEmpty(SessionLog)
+            ? entry
+            : $"{SessionLog}{Environment.NewLine}{Environment.NewLine}{entry}";
+    }
+
+    private static string FormatPlayLog(ModDefinition? mod, InstalledInstance instance)
+    {
+        var metadata = instance.Metadata;
+        return $"""
+        Starting game...
+        Mod: {metadata?.ModDisplayName ?? mod?.DisplayName ?? instance.ModId}
+        Version: {metadata?.Tag ?? instance.Tag}
+        Channel: {metadata?.Channel?.ToString() ?? "(unknown)"}
+        Downloaded from: {metadata?.AssetUrl ?? "(unknown)"}
+        Executable path: {instance.ExecutablePath ?? "(none)"}
+        Instance directory: {instance.Dir}
+        """;
     }
 
     private void NotifyCommandStatesChanged()

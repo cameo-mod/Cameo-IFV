@@ -1,10 +1,11 @@
 using System.Diagnostics;
+using System.Text.Json;
 using CameoIFV.Core.Model;
 using CameoIFV.Core.Storage;
 
 namespace CameoIFV.Core.Install;
 
-public sealed record InstalledInstance(string ModId, string Tag, string Dir, string? ExecutablePath)
+public sealed record InstalledInstance(string ModId, string Tag, string Dir, string? ExecutablePath, InstallMetadata? Metadata = null)
 {
     public bool IsRunnable => ExecutablePath is not null && File.Exists(ExecutablePath);
 }
@@ -29,7 +30,7 @@ public sealed class InstanceManager
         foreach (var dir in Directory.EnumerateDirectories(modRoot))
         {
             var exe = ExecutableLocator.Locate(dir, mod.LaunchExecutable);
-            result.Add(new InstalledInstance(mod.Id, Path.GetFileName(dir), dir, exe));
+            result.Add(new InstalledInstance(mod.Id, Path.GetFileName(dir), dir, exe, ReadMetadata(dir)));
         }
 
         // Newest install first (folder write time is a good proxy for install order).
@@ -58,5 +59,21 @@ public sealed class InstanceManager
 
         return Process.Start(startInfo)
                ?? throw new InvalidOperationException($"Failed to start {instance.ExecutablePath}.");
+    }
+
+    private static InstallMetadata? ReadMetadata(string instanceDir)
+    {
+        var path = Path.Combine(instanceDir, InstallOrchestrator.MetadataFileName);
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<InstallMetadata>(File.ReadAllText(path));
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -10,7 +10,7 @@
         x:Class="CameoIFV.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Width="760" Height="520"
+        Width="820" Height="660"
         WindowStartupLocation="CenterScreen"
         Title="Cameo-IFV">
 
@@ -94,6 +94,17 @@
         <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0" Spacing="4">
             <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}" IsIndeterminate="{Binding IsBusy}" Height="6"/>
             <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+            <TextBox x:Name="SessionLogTextBox"
+                     Text="{Binding SessionLog, Mode=OneWay}"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas"
+                     FontSize="11"
+                     MinHeight="120"
+                     MaxHeight="150"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
         </StackPanel>
     </Grid>
 </Window>
