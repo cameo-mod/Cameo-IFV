@@ -1,7 +1,7 @@
 # Cameo-IFV — Design
 
 Working architecture for the multi-mod, incremental OpenRA launcher. This is a living
-document; nothing here is sacred except the four locked decisions in the README.
+document; durable product decisions are summarized in the README.
 
 ## 1. The core problem
 
@@ -63,7 +63,8 @@ Until one exists, CA releases use the full-download fallback (still correct, jus
 
 ## 3. Client components (CameoIFV.Core)
 
-- **Catalog/config** (`Model/ModCatalog.cs`) — mods, sources, per-OS asset filters. Done (scaffold).
+- **Catalog/config** (`Model/ModCatalog.cs`) — **DONE.** Mods, sources, launch executables, and
+  per-OS asset filters are data-driven through `config/catalog.default.json`.
 - **Release provider** — **DONE.** `Github/GitHubReleaseProvider` lists releases with ETag /
   `If-None-Match` conditional requests (304 reuses a cached body via `Github/ETagStore` — no quota
   spend, no transfer; degrades to last-known list on rate-limit/transient errors). Selects the
@@ -81,40 +82,60 @@ Until one exists, CA releases use the full-download fallback (still correct, jus
   - `ZsyncUpdater` (incremental; compiles, **not yet e2e-tested** — needs a published .zsync, K2) and
     `FullDownloadUpdater` (fallback). `UpdaterFactory` picks zsync only when a control file and an
     existing seed zip are present; first installs and missing-seed updates use full download.
-- **Instance manager** — per-version isolated install dirs + per-user data dir for settings/cache/seed.
-  Paths layer **DONE** (`Storage/LauncherPaths`): single writable per-user root
-  (`%LocalAppData%/Cameo-IFV`) with `etags.json`, `seeds/{mod}/{channel}.zip` (the retained zsync
-  seed), `instances/{mod}/{tag}/`, `downloads/`. The extract-to-instance + promote-temp-zip-to-seed
-  orchestration is the next step. `Update/UpdatePlanner` builds the `UpdatePlan` (seed lookup +
-  distinct temp output path so zsync never truncates its own seed).
-- **Download/patch task** — zsync path when `.zsync` present, full download otherwise; whole-file
-  checksum verification before extract; resumable.
+- **Instance manager and storage** — **DONE.** Settings and the ETag cache remain under
+  `%LocalAppData%/Cameo-IFV`; players can choose and save library roots containing
+  `seeds/{mod}/{channel}.zip`, `instances/{mod}/{tag}/`, and `downloads/`. `InstanceManager`
+  lists/launches/deletes versions while offline. Each completed install stores a small
+  `.cameo-ifv-install.json` metadata file so later launches can report their source/channel.
+- **Download/patch task** — **DONE.** Uses zsync when a sidecar and seed are available, otherwise
+  streams a full download. Supports cancellation, progress/byte reporting, truncated-download
+  rejection, archive structural verification, and detailed session-log events.
 
 ## 4. UI (CameoIFV.App)
 
-Avalonia MVVM (CommunityToolkit.Mvvm). **MVP shipped:** mod picker, available-releases list (tag +
-channel + an "incremental" marker when a `.zsync` exists), installed list, Install/Update + Play +
-Delete, status line and progress bar. `Services/LauncherServices` is the composition root (HttpClient,
-paths, provider, orchestrator, instance manager); the catalog is copied to output and loaded at start.
-Releases are aggregated across a mod's sources (so CA shows stable + dev). *Built + unit-tested; the
-GUI itself has not been launched interactively yet.* Later: per-channel filtering UI, transferred-vs-total
-byte readout to make the zsync win visible, cancellation.
+Avalonia MVVM (CommunityToolkit.Mvvm). **Shipped and interactively tested:** sorted mod picker,
+per-source channel picker, available-releases list with publication date/relative age and incremental
+marker, installed list, Install/Update + Cancel + Play + Delete, saved library-path selector, status
+line, progress/byte reporting, and a selectable read-only Session log panel. The log records download
+URLs, archive/staging/final paths, overwrite decisions, archive/extracted sizes, and launch details.
+Autoscroll pauses when the user scrolls upward and resumes only when they return to the bottom.
+
+`Services/LauncherServices` is the composition root (HttpClient, paths, provider, orchestrator,
+instance manager); the catalog is copied to output and loaded at start. The launcher remembers the
+last selected mod/channel and defensively falls back when saved catalog entries no longer exist.
 
 ### Install pipeline (CameoIFV.Core/Install) — DONE
 
 `InstallOrchestrator.InstallAsync` runs phases Downloading → Verifying → Extracting → Finalizing → Done:
-pick updater (seed-gated), assemble zip, verify it opens as a valid archive, extract to an isolated
-`instances/{mod}/{tag}/`, then promote the assembled zip to the seed slot for the next diff. On failure
-it deletes the temp `.part`. `ExecutableLocator` finds the run target (configured `LaunchExecutable` or a
-lone top-level `.exe`). `InstanceManager` lists/launches/deletes installed instances. Tested with a
-synthetic zip (happy path + corrupt-archive rejection), no network needed.
+pick updater (seed-gated), assemble zip, verify it opens as a valid archive, extract into a sibling
+staging directory, then swap the staged tree into `instances/{mod}/{tag}/` only after extraction
+succeeds. Reinstalls preserve the prior working instance if verification/extraction fails. The
+assembled zip is promoted to the seed slot only after the instance swap succeeds.
 
-## 5. Open questions
+Cancellation/failure removes the temporary `.part` and staging tree. Startup/library-switch cleanup
+removes abandoned `.part`, direct `*.staging-*`, and direct `*.backup-*` artifacts while preserving
+real installs and nested game content. `ExecutableLocator` finds the configured `LaunchExecutable` or
+an unambiguous lone top-level `.exe`; `InstanceManager` lists/launches/deletes installed instances.
+The offline Core test suite covers successful/corrupt/reinstall-safe installs, executable discovery,
+instance enumeration, settings compatibility, cleanup, confirmation timing, and provider behavior.
+
+## 5. Remaining work
 
 - ~~Seed selection / keep zip vs reconstruct from tree.~~ **Resolved:** keep the previous `.zip` as
   the seed (see §2 "Seed selection").
 - ~~GitHub release-asset CDN range-request support (C3).~~ **Verified 2026-06-05:** assets return
   `206 Partial Content` + `Accept-Ranges: bytes` + correct `Content-Range` after the 302 redirect.
-- zsync client: maintained managed .NET library vs. implementing the rolling-checksum + range
-  reassembly ourselves (Claude C1, in progress).
+- End-to-end zsync validation still needs two published zsync-enabled Cameo releases: install the
+  first as the seed, then confirm the second transfers only changed ranges.
+- Installed game files are isolated under `instances/{mod}/{tag}/`, but OpenRA settings/support
+  data are not currently isolated per instance. Cameo-IFV does not pass `Engine.SupportDir`, so
+  OpenRA normally uses its shared platform support directory (for example `%AppData%\OpenRA` on
+  Windows). Decide whether to preserve shared settings or offer per-instance support data.
+- **Shared packages (`packageId`).** The three OpenRA entries currently point to
+  the same Windows portable zip but install independently. Add optional `packageId` so UI identity
+  remains per-game while download seed and extracted instance storage can be shared. Existing mods
+  default `packageId` to `id`. Shared-package delete semantics need explicit UI wording.
+- **Split catalog files.** Replace the growing monolithic
+  `config/catalog.default.json` with a small manifest plus one file per mod/project.
+- GitHub release pagination (`per_page=30`) remains to be implemented.
 - Self-update of the launcher itself (deferred).
