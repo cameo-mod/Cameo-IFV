@@ -37,6 +37,7 @@ public class CatalogLoaderTests
                 "openra-red-alert",
                 "openra-tiberian-dawn",
                 "openra-dune-2000",
+                "shattered-paradise",
             },
             catalog.Mods.Select(m => m.Id));
 
@@ -82,6 +83,15 @@ public class CatalogLoaderTests
         AssertOpenRA(catalog, "openra-red-alert", "OpenRA: Red Alert", "RedAlert.exe");
         AssertOpenRA(catalog, "openra-tiberian-dawn", "OpenRA: Tiberian Dawn", "TiberianDawn.exe");
         AssertOpenRA(catalog, "openra-dune-2000", "OpenRA: Dune 2000", "Dune2000.exe");
+
+        var shatteredParadise = catalog.Mods.Single(m => m.Id == "shattered-paradise");
+        Assert.Equal("Shattered Paradise", shatteredParadise.DisplayName);
+        Assert.Equal("ShatteredParadise.exe", shatteredParadise.LaunchExecutable);
+        var shatteredParadiseSource = Assert.Single(shatteredParadise.Sources);
+        Assert.Equal(ReleaseChannel.Stable, shatteredParadiseSource.Channel);
+        Assert.Equal("ABrandau/Shattered-Paradise-SDK", shatteredParadiseSource.Repository);
+        Assert.Equal("-x64-winportable.zip", shatteredParadiseSource.Assets["windows"].AssetSuffix);
+        Assert.Null(shatteredParadiseSource.Assets["windows"].ZsyncSuffix);
     }
 
     private static void AssertOpenRA(ModCatalog catalog, string id, string displayName, string launchExecutable)

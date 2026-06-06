@@ -30,6 +30,7 @@ Cameo-IFV fixes that and generalises the launcher so any OpenRA mod is just a co
   - You Must Construct Additional: stable at `patrickwieth/YMCA`.
   - OpenE2140: stable at `OpenE2140/OpenE2140`.
   - OpenRA: Red Alert, Tiberian Dawn, and Dune 2000 from `OpenRA/OpenRA`.
+  - Shattered Paradise: stable at `ABrandau/Shattered-Paradise-SDK`.
 - **Per-version game files.** Each installed version is extracted into its own instance directory,
   so versions do not clobber one another's game files. OpenRA settings and support data remain
   shared unless a game package supplies its own local `Support` directory.
