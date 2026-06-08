@@ -186,9 +186,13 @@ public sealed class ZsyncUpdater : IUpdater
             {
                 throw;
             }
-            catch when (attempt < MaxRangeAttempts)
+            catch (Exception ex) when (attempt < MaxRangeAttempts)
             {
-                await Task.Delay(200 * attempt, cancellationToken).ConfigureAwait(false);
+                // Honour the CDN's Retry-After when it throttled us; otherwise a small linear back-off.
+                var delay = ex is TransientHttpException { RetryAfter: { } retryAfter }
+                    ? RetryPolicy.Clamp(retryAfter, TimeSpan.FromSeconds(60))
+                    : TimeSpan.FromMilliseconds(200 * attempt);
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
             }
         }
     }

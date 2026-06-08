@@ -116,6 +116,24 @@ public class GitHubRangeDownloaderTests
         Assert.Equal(signed, targets[2]);
     }
 
+    [Fact]
+    public void DownloadRange_Throws_TransientWithRetryAfter_On503()
+    {
+        // A throttled range request must surface as a TransientHttpException carrying the server's
+        // Retry-After, so the parallel retry loop can back off exactly as asked.
+        var handler = new StubHandler((_, _) =>
+        {
+            var resp = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            resp.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(7));
+            return resp;
+        });
+        using var http = new HttpClient(handler);
+        var dl = new GitHubRangeDownloader(http, AssetUrl);
+
+        var ex = Assert.Throws<TransientHttpException>(() => dl.DownloadRange(0, 4096));
+        Assert.Equal(TimeSpan.FromSeconds(7), ex.RetryAfter);
+    }
+
     private sealed class StubHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> _respond;

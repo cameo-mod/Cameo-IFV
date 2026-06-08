@@ -54,6 +54,32 @@ public class FullDownloadUpdaterTests
     }
 
     [Fact]
+    public async Task Retries_On503_HonoringRetryAfter_ThenSucceeds()
+    {
+        using var dir = new TempDir();
+        var content = MakeContent(32 * 1024);
+        var calls = 0;
+        var handler = new ScriptedHandler(req =>
+        {
+            calls++;
+            if (calls == 1)
+            {
+                var resp = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                resp.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+                return resp;
+            }
+            return Full(content);
+        });
+        using var http = new HttpClient(handler);
+        var updater = new FullDownloadUpdater(http);
+
+        await updater.UpdateAsync(PlanFor(dir, content.Length), null, CancellationToken.None);
+
+        Assert.Equal(2, calls); // 503 (Retry-After: 0) then success
+        Assert.Equal(content, await File.ReadAllBytesAsync(PlanFor(dir, content.Length).OutputZipPath));
+    }
+
+    [Fact]
     public async Task Resumes_FromBytesOnDisk_AfterTruncatedBody()
     {
         using var dir = new TempDir();

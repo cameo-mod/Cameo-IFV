@@ -58,9 +58,11 @@ public sealed class FullDownloadUpdater : IUpdater
             }
             catch (Exception ex) when (attempt < MaxAttempts && IsTransient(ex))
             {
-                // Exponential backoff: 2s, 4s, 8s, 16s (capped at 30s). The next iteration resumes
-                // from the bytes already on disk.
-                var delay = TimeSpan.FromSeconds(Math.Min(30, 1 << attempt));
+                // Honour a server Retry-After when present; otherwise exponential backoff (2s, 4s, 8s,
+                // 16s, capped at 30s). The next iteration resumes from the bytes already on disk.
+                var delay = ex is TransientHttpException { RetryAfter: { } retryAfter }
+                    ? RetryPolicy.Clamp(retryAfter, TimeSpan.FromSeconds(60))
+                    : TimeSpan.FromSeconds(Math.Min(30, 1 << attempt));
                 var onDisk = File.Exists(plan.OutputZipPath) ? new FileInfo(plan.OutputZipPath).Length : 0;
                 progress?.Report(new UpdateProgress(onDisk, expected ?? 0,
                     $"full download: attempt {attempt} failed ({ex.GetType().Name}: {ex.Message}); "
@@ -78,6 +80,15 @@ public sealed class FullDownloadUpdater : IUpdater
             request.Headers.Range = new RangeHeaderValue(resumeFrom, null); // bytes=N-
 
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        // Throttling / transient server errors carry a Retry-After we want to honour; surface it as a
+        // TransientHttpException so the retry loop backs off as the server asks. Other 4xx fall through
+        // to EnsureSuccessStatusCode and fail fast (not retried).
+        if (RetryPolicy.IsRetryableStatus(response.StatusCode))
+            throw new TransientHttpException(
+                $"Download of {plan.AssetUrl} returned {(int)response.StatusCode} {response.StatusCode}.",
+                RetryPolicy.RetryAfterDelay(response));
+
         response.EnsureSuccessStatusCode();
 
         // If we asked to resume but the server ignored Range and sent the whole file (200), restart
@@ -121,6 +132,7 @@ public sealed class FullDownloadUpdater : IUpdater
     /// <summary>Failures worth retrying: server 5xx/408/429 and network-level drops mid-transfer.</summary>
     private static bool IsTransient(Exception ex) => ex switch
     {
+        TransientHttpException => true, // throttle / 5xx surfaced with the server's Retry-After
         // EnsureSuccessStatusCode sets StatusCode; a null code means a network-level failure (no response).
         HttpRequestException h => h.StatusCode is null
             or HttpStatusCode.RequestTimeout

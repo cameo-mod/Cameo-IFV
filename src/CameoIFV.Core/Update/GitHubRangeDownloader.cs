@@ -80,6 +80,13 @@ public sealed class GitHubRangeDownloader : IRangeDownloader
     {
         try
         {
+            // Throttling / transient server errors carry a Retry-After we want to honour; surface it
+            // as a TransientHttpException so the (parallel) retry loop backs off as the CDN asks.
+            if (RetryPolicy.IsRetryableStatus(response.StatusCode))
+                throw new TransientHttpException(
+                    $"Range request to {_assetUrl} returned {(int)response.StatusCode} {response.StatusCode}.",
+                    RetryPolicy.RetryAfterDelay(response));
+
             response.EnsureSuccessStatusCode();
 
             // A 200 OK to a Range request means a proxy/AV/CDN ignored the header and is handing us
