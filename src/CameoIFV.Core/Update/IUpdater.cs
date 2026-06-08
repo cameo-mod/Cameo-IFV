@@ -27,7 +27,11 @@ public sealed class UpdatePlan
     public required string OutputZipPath { get; init; }
 }
 
-public readonly record struct UpdateProgress(long BytesTransferred, long TotalBytes)
+/// <summary>
+/// Progress tick. <paramref name="Message"/> is an optional human-readable milestone (e.g. zsync
+/// phase transitions) surfaced in the launcher's session log; null for plain byte-progress ticks.
+/// </summary>
+public readonly record struct UpdateProgress(long BytesTransferred, long TotalBytes, string? Message = null)
 {
     public double Fraction => TotalBytes > 0 ? (double)BytesTransferred / TotalBytes : 0;
 }

@@ -1,4 +1,8 @@
+using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using CameoIFV.Core.Update;
 using Xunit;
 
@@ -59,5 +63,65 @@ public class GitHubRangeDownloaderTests
         using var ms2 = new MemoryStream();
         mid.CopyTo(ms2);
         Assert.Equal(1024, ms2.ToArray().Length);
+    }
+
+    [Fact]
+    public void DownloadRange_Throws_WhenServerIgnoresRangeAndReturns200()
+    {
+        // A proxy/AV/CDN that ignores Range hands back the whole asset as 200 OK. Feeding that to
+        // the patcher would corrupt the assembly, so the downloader must reject it loudly.
+        var handler = new StubHandler((_, _) =>
+        {
+            var resp = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(new byte[4096]),
+            };
+            return resp;
+        });
+        using var http = new HttpClient(handler);
+        var dl = new GitHubRangeDownloader(http, AssetUrl);
+
+        var ex = Assert.Throws<HttpRequestException>(() => dl.DownloadRange(0, 4096));
+        Assert.Contains("206", ex.Message);
+    }
+
+    [Fact]
+    public void DownloadRange_ReusesResolvedCdnUrl_AfterFirstRedirect()
+    {
+        // Simulate GitHub's 302 -> signed CDN URL by reporting the "landed" URL on the response.
+        // The first range resolves it; every later range should target the signed URL directly,
+        // skipping the redirect hop.
+        var signed = new Uri("https://objects.example.test/signed-blob?token=abc");
+        var targets = new List<Uri>();
+        var handler = new StubHandler((req, _) =>
+        {
+            targets.Add(req.RequestUri!);
+            var resp = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = new ByteArrayContent(new byte[16]),
+                // Pretend auto-redirect followed the 302 and landed on the signed URL.
+                RequestMessage = new HttpRequestMessage(HttpMethod.Get, signed),
+            };
+            return resp;
+        });
+        using var http = new HttpClient(handler);
+        var dl = new GitHubRangeDownloader(http, AssetUrl);
+
+        dl.DownloadRange(0, 16).Dispose();
+        dl.DownloadRange(16, 32).Dispose();
+        dl.DownloadRange(32, 48).Dispose();
+
+        Assert.Equal(AssetUrl, targets[0]);     // first hop resolves via the asset URL
+        Assert.Equal(signed, targets[1]);       // subsequent hops reuse the signed URL
+        Assert.Equal(signed, targets[2]);
+    }
+
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> _respond;
+        public StubHandler(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond) => _respond = respond;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(_respond(request, cancellationToken));
     }
 }

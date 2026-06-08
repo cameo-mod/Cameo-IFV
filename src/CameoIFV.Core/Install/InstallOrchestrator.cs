@@ -66,7 +66,7 @@ public sealed class InstallOrchestrator
         """);
         var dlProgress = progress is null
             ? null
-            : new Progress<UpdateProgress>(p => progress.Report(new InstallProgress(InstallPhase.Downloading, p.BytesTransferred, p.TotalBytes, updater.Mode)));
+            : new Progress<UpdateProgress>(p => progress.Report(new InstallProgress(InstallPhase.Downloading, p.BytesTransferred, p.TotalBytes, updater.Mode, p.Message)));
         await updater.UpdateAsync(plan, dlProgress, cancellationToken);
 
         var instanceDir = _paths.InstanceDir(mod.Id, release.TagName);
