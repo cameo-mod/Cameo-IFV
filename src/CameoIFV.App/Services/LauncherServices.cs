@@ -42,7 +42,7 @@ public sealed class LauncherServices
     public LauncherServices()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Cameo-IFV/0.1");
+        _http.DefaultRequestHeaders.Add("User-Agent", "Cameo-IFV/1.0");
 
         _settingsStore = new LauncherSettingsStore();
         _settings = _settingsStore.Load();

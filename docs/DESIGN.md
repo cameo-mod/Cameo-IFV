@@ -76,12 +76,24 @@ Until one exists, CA releases use the full-download fallback (still correct, jus
   release 2022, 1★) but MIT, so if it rots we vendor it; the .zsync format is stable. zsyncnet exposes
   exactly the seam we need: `Zsync.Sync(ControlFile, List<Stream> seeds, IRangeDownloader, Stream
   workingStream, IProgress<ulong>, CancellationToken)`. Implemented in `CameoIFV.Core/Update/`:
-  - `GitHubRangeDownloader : IRangeDownloader` — redirect-following `HttpClient`, range requests.
-    **Verified** against the live 980 MB Cameo asset (zip magic at offset 0; exact 1 KiB mid-range).
+  - `GitHubRangeDownloader : IRangeDownloader` — `HttpClient` range requests with an async entry
+    point for parallel fetching. **Verified** against the live Cameo asset. Resolves GitHub's signed
+    CDN URL once and reuses it across ranges (skipping the per-request 302), asserts `206 Partial
+    Content` so a Range-stripping intermediary fails loudly, and surfaces throttle/5xx as a
+    `TransientHttpException` carrying the server's `Retry-After`.
   - `IUpdater` + `UpdatePlan`/`UpdateProgress` — launcher-facing abstraction; never references zsyncnet.
-  - `ZsyncUpdater` (incremental; compiles, **not yet e2e-tested** — needs a published .zsync, K2) and
-    `FullDownloadUpdater` (fallback). `UpdaterFactory` picks zsync only when a control file and an
-    existing seed zip are present; first installs and missing-seed updates use full download.
+    `UpdateProgress.Message` carries phase milestones into the session log.
+  - `ZsyncUpdater` (incremental) — **verified end-to-end** against a published `.zsync` (byte-perfect
+    SHA-1, ~85% reused / ~15% fetched). Because zsyncnet's `Sync` fetches ranges strictly sequentially
+    — latency-bound (~30 ms/round-trip × thousands of ranges), slower than a full download — it runs in
+    three phases: **discover** the needed ranges (matcher + a recording, zero-returning downloader, no
+    network), **prefetch** them with bounded parallelism (32) into a sparse cache file, then
+    **assemble** from seed + cache and let zsyncnet verify the whole-file SHA-1. Measured ~0.5 → ~8 MB/s
+    on the delta.
+  - `FullDownloadUpdater` (fallback) — streams a full download; retries transient 5xx/timeouts (honouring
+    `Retry-After`) and resumes via `Range` from the bytes already on disk. `UpdaterFactory` picks zsync
+    only when a control file and an existing seed zip are present; first installs and missing-seed
+    updates use full download.
 - **Instance manager and storage** — **DONE.** Settings and the ETag cache remain under
   `%LocalAppData%/Cameo-IFV`; players can choose and save library roots containing
   `seeds/{mod}/{channel}.zip`, `instances/{mod}/{tag}/`, and `downloads/`. `InstanceManager`
@@ -125,8 +137,9 @@ instance enumeration, settings compatibility, cleanup, confirmation timing, and 
   the seed (see §2 "Seed selection").
 - ~~GitHub release-asset CDN range-request support (C3).~~ **Verified 2026-06-05:** assets return
   `206 Partial Content` + `Accept-Ranges: bytes` + correct `Content-Range` after the 302 redirect.
-- End-to-end zsync validation still needs two published zsync-enabled Cameo releases: install the
-  first as the seed, then confirm the second transfers only changed ranges.
+- ~~End-to-end zsync validation needs two published zsync-enabled Cameo releases.~~ **Done
+  (2026-06-08):** seeded from `playtest-20260531`, updated to `20260608` — ~85% reused, ~15% fetched
+  in parallel, assembled zip matches the control-file SHA-1.
 - Installed game files are isolated under `instances/{mod}/{tag}/`, but OpenRA settings/support
   data are not currently isolated per instance. Cameo-IFV does not pass `Engine.SupportDir`, so
   OpenRA normally uses its shared platform support directory (for example `%AppData%\OpenRA` on

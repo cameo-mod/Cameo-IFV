@@ -44,13 +44,21 @@ Cameo-IFV fixes that and generalises the launcher so any OpenRA mod is just a co
 
 ## Status
 
-Cameo-IFV is a usable Windows-first launcher with automated portable releases. It can browse,
-install, launch, and delete isolated versions from the built-in catalog. Full-download updates are
-working. Incremental zsync updates work end to end against a published `.zsync` sidecar: measured
-on a real Cameo playtest bump, ~85% of the archive was reused from the previous install and only
-the ~15% delta was fetched. The transport resolves GitHub's signed-CDN redirect once and reuses it
-across the (many) small range requests, and asserts `206 Partial Content` so a Range-stripping
-proxy fails loudly instead of silently re-downloading the whole archive.
+**1.0** — Windows-first launcher with automated portable releases. It can browse, install, launch,
+and delete isolated versions from the built-in catalog, on a saved library location of your choice.
+
+Incremental zsync updates work end to end against a published `.zsync` sidecar. On a real Cameo
+playtest bump, ~85% of the archive was reused from the previous install and only the ~15% delta was
+fetched — and that delta is downloaded with parallel range requests (zsync's own sequential fetch is
+latency-bound and ends up slower than a full download), so an update completes in seconds rather than
+minutes. The transport resolves GitHub's signed-CDN redirect once and reuses it across the many small
+range requests, asserts `206 Partial Content` so a Range-stripping proxy fails loudly instead of
+silently re-downloading the whole archive, and honours `Retry-After` if the CDN throttles. The
+full-download fallback (used on first install and for releases without a `.zsync`) retries transient
+5xx/timeouts and resumes from the bytes already on disk.
+
+Deferred to a later release: GitHub release pagination beyond 30 entries, Linux/macOS asset filters,
+and launcher self-update.
 
 ## Layout
 
