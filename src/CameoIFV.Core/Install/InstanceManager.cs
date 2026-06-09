@@ -45,17 +45,29 @@ public sealed class InstanceManager
             Directory.Delete(instance.Dir, recursive: true);
     }
 
-    public Process Launch(InstalledInstance instance)
+    public Process Launch(InstalledInstance instance, ModDefinition mod)
     {
         if (!instance.IsRunnable)
             throw new InvalidOperationException($"Instance {instance.Tag} has no runnable executable.");
 
+        // Isolate this project's user data in its own support dir (shared across the project's
+        // versions), seeding it from the shared %AppData%\OpenRA on first launch.
+        var supportDir = SupportDirManager.Prepare(_paths.SupportDir(mod.Id), mod.EngineModId ?? mod.Id);
+
+        // UseShellExecute must be false so ArgumentList drives deterministic command-line quoting.
         var startInfo = new ProcessStartInfo
         {
             FileName = instance.ExecutablePath!,
             WorkingDirectory = Path.GetDirectoryName(instance.ExecutablePath!),
-            UseShellExecute = true,
+            UseShellExecute = false,
         };
+
+        // Point the engine at the per-project support dir. The value is wrapped in literal quotes so
+        // it survives the branded launcher's naive argument re-join (string.Join(" ")) and any spaces
+        // in the path (e.g. a Windows username with a space). The trailing separator is stripped so a
+        // path-ending backslash can't escape the closing quote.
+        var supportArg = supportDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        startInfo.ArgumentList.Add($"Engine.SupportDir=\"{supportArg}\"");
 
         return Process.Start(startInfo)
                ?? throw new InvalidOperationException($"Failed to start {instance.ExecutablePath}.");

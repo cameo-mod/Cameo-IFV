@@ -18,8 +18,18 @@ public sealed class ModCatalog
 /// </summary>
 public sealed class ModDefinition
 {
-    /// <summary>Stable identifier used for cache/instance folders. Never displayed.</summary>
+    /// <summary>Stable identifier used for cache/instance/support folders. Never displayed.</summary>
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The OpenRA-internal mod id (as in the mod's own mod.yaml), used only to namespace the
+    /// per-mod subtrees (maps/Replays/Saves/Content) when migrating existing user data into the
+    /// isolated support dir. Differs from <see cref="Id"/> for the official mods (e.g. catalog id
+    /// "openra-red-alert" → engine id "ra") and CA ("combined-arms" → "ca"). Falls back to
+    /// <see cref="Id"/> when null. Not needed for launching — the branded launcher supplies its
+    /// own Game.Mod.
+    /// </summary>
+    public string? EngineModId { get; set; }
 
     /// <summary>Human-facing name shown in the UI.</summary>
     public string DisplayName { get; set; } = string.Empty;
