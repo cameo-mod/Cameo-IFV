@@ -3,6 +3,7 @@
     {
       "id": "cameo",
       "displayName": "Cameo",
+      "engineModId": "cameo",
       "launchExecutable": "CameoMod.exe",
       "sources": [
         {
@@ -20,6 +21,7 @@
     {
       "id": "combined-arms",
       "displayName": "Combined Arms",
+      "engineModId": "ca",
       "launchExecutable": "CombinedArms.exe",
       "sources": [
         {
@@ -47,6 +49,7 @@
     {
       "id": "ymca",
       "displayName": "You Must Construct Additional",
+      "engineModId": "ca",
       "launchExecutable": "YouMustConstructAdditional.exe",
       "sources": [
         {
@@ -64,6 +67,7 @@
     {
       "id": "opene2140",
       "displayName": "OpenE2140",
+      "engineModId": "e2140",
       "launchExecutable": "OpenE2140.exe",
       "sources": [
         {
@@ -81,6 +85,7 @@
     {
       "id": "openra-red-alert",
       "displayName": "OpenRA: Red Alert",
+      "engineModId": "ra",
       "launchExecutable": "RedAlert.exe",
       "sources": [
         {
@@ -98,6 +103,7 @@
     {
       "id": "openra-tiberian-dawn",
       "displayName": "OpenRA: Tiberian Dawn",
+      "engineModId": "cnc",
       "launchExecutable": "TiberianDawn.exe",
       "sources": [
         {
@@ -115,6 +121,7 @@
     {
       "id": "openra-dune-2000",
       "displayName": "OpenRA: Dune 2000",
+      "engineModId": "d2k",
       "launchExecutable": "Dune2000.exe",
       "sources": [
         {
@@ -132,6 +139,7 @@
     {
       "id": "shattered-paradise",
       "displayName": "Shattered Paradise",
+      "engineModId": "sp",
       "launchExecutable": "ShatteredParadise.exe",
       "sources": [
         {

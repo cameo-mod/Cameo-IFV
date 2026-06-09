@@ -10,6 +10,7 @@ namespace CameoIFV.Core.Storage;
 ///   etags.json                         API conditional-request cache
 ///   seeds/{modId}/{channel}.zip        most-recent downloaded zip, reused as the zsync seed
 ///   instances/{modId}/{tag}/           extracted, runnable install for one version
+///   support/{modId}/                   isolated OpenRA support dir, shared across that project's versions
 ///   downloads/                         scratch for in-flight zips before extraction
 /// </summary>
 public sealed class LauncherPaths
@@ -37,6 +38,15 @@ public sealed class LauncherPaths
 
     public string InstanceDir(string modId, string tag)
         => Path.Combine(InstancesDir, modId, SanitizeTag(tag));
+
+    /// <summary>
+    /// Isolated OpenRA support dir for a project, shared across all of its installed versions.
+    /// Passed to the engine via Engine.SupportDir so settings/maps/replays/saves live here instead
+    /// of the shared platform %AppData%\OpenRA. Keyed by the launcher's mod id (unique per catalog
+    /// entry, so the three OpenRA mods from one repo each get their own).
+    /// </summary>
+    public string SupportDir(string modId)
+        => Path.Combine(Root, "support", modId);
 
     public void EnsureBaseDirs()
     {

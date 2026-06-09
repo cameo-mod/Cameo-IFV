@@ -255,14 +255,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanPlay))]
     private void Play()
     {
-        if (SelectedInstance is null)
+        if (SelectedInstance is null || SelectedMod is null)
             return;
 
         ClearPendingDelete();
         AppendSessionLog(FormatPlayLog(SelectedMod, SelectedInstance));
         try
         {
-            _services.Instances.Launch(SelectedInstance);
+            _services.Instances.Launch(SelectedInstance, SelectedMod);
             Status = $"Launched {SelectedInstance.Tag}.";
             AppendSessionLog(Status);
         }
