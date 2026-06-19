@@ -151,4 +151,14 @@ instance enumeration, settings compatibility, cleanup, confirmation timing, and 
 - **Split catalog files.** Replace the growing monolithic
   `config/catalog.default.json` with a small manifest plus one file per mod/project.
 - GitHub release pagination (`per_page=30`) remains to be implemented.
-- Self-update of the launcher itself (deferred).
+- **Self-update of the launcher itself — DONE (Windows).** On startup (shipped builds only) the launcher
+  checks `cameo-mod/Cameo-IFV` for a newer release by reusing the release-listing path with itself as the
+  source (`CameoIFV.Core/Update/LauncherUpdateChecker`), comparing the build-injected version
+  (`AppVersion`, set via `release.yml` `-p:Version`/`-p:InformationalVersion`). A banner offers a one-click
+  "Update & restart": full download → verify the zip contains the exe → extract → swap in place. The swap
+  exploits that Windows can rename a running exe, so the live `Cameo-IFV.exe` is moved to `*.old`, the new
+  files are copied in, and the app relaunches the new exe; the `*.old` is swept on the next startup
+  (`LauncherSelfUpdater`). Stable-only; a non-writable install dir (e.g. Program Files) aborts cleanly with
+  a "move it / update manually" message. Bootstrap caveat: pre-self-update versions must be updated to the
+  first self-update-capable release once by hand. Deferred: launcher prereleases, Linux/macOS, an opt-out
+  setting, and signing the download.

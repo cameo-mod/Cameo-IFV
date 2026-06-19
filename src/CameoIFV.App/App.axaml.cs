@@ -20,10 +20,17 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var viewModel = new MainWindowViewModel();
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(),
+                DataContext = viewModel,
             };
+
+#if !DEBUG
+            // Auto-check for a newer launcher on startup in shipped builds only; dev builds report an
+            // un-injected version and would otherwise offer to "update" to the latest release.
+            viewModel.BeginStartupUpdateCheck();
+#endif
         }
 
         base.OnFrameworkInitializationCompleted();

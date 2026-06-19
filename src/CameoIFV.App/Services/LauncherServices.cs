@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using CameoIFV.Core.Config;
 using CameoIFV.Core.Github;
 using CameoIFV.Core.Install;
@@ -22,6 +24,8 @@ public sealed class LauncherServices
 {
     private readonly HttpClient _http;
     private readonly UpdaterFactory _factory;
+    private readonly LauncherUpdateChecker _launcherChecker;
+    private readonly LauncherSelfUpdater _selfUpdater;
     private readonly LauncherSettingsStore _settingsStore;
     private LauncherSettings _settings;
 
@@ -56,6 +60,47 @@ public sealed class LauncherServices
 
         _factory = new UpdaterFactory(_http);
         (Installer, Instances) = CreateInstallServices(Paths);
+
+        _launcherChecker = new LauncherUpdateChecker(ReleaseProvider);
+        _selfUpdater = new LauncherSelfUpdater(new FullDownloadUpdater(_http));
+        // Sweep the renamed-aside exe left by a previous in-place update, now that it's no longer mapped.
+        var selfUpdate = BuildSelfUpdateContext();
+        LauncherSelfUpdater.CleanupPreviousUpdate(selfUpdate.InstallDir, selfUpdate.ExecutableName);
+    }
+
+    /// <summary>The running launcher's version string, for display (e.g. "v2.0.0").</summary>
+    public string CurrentVersionDisplay => AppVersion.Raw;
+
+    /// <summary>
+    /// Returns a newer launcher release if one exists, or null. Null also when the running version is
+    /// unknown (e.g. a local dev build), so we never offer to "update" an unversioned build.
+    /// </summary>
+    public Task<LauncherUpdate?> CheckForLauncherUpdateAsync(bool includePrerelease, CancellationToken cancellationToken)
+    {
+        if (AppVersion.Current is null)
+            return Task.FromResult<LauncherUpdate?>(null);
+
+        return _launcherChecker.CheckAsync(AppVersion.Current, Platform, includePrerelease, cancellationToken);
+    }
+
+    /// <summary>
+    /// Downloads and applies a launcher update in place, returning the new executable to relaunch.
+    /// </summary>
+    public Task<string> ApplyLauncherUpdateAsync(LauncherUpdate update, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
+        => _selfUpdater.ApplyAsync(update, BuildSelfUpdateContext(), progress, cancellationToken);
+
+    private SelfUpdateContext BuildSelfUpdateContext()
+    {
+        var scratch = Path.Combine(Paths.DownloadsDir, "launcher");
+        var exePath = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exePath))
+        {
+            // Unusual host with no process path: assume the published exe beside the app base dir.
+            var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return new SelfUpdateContext(baseDir, "Cameo-IFV.exe", scratch);
+        }
+
+        return new SelfUpdateContext(Path.GetDirectoryName(exePath)!, Path.GetFileName(exePath), scratch);
     }
 
     public void SetLibraryRoot(string libraryRoot)

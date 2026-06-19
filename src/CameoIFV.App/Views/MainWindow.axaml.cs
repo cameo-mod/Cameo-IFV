@@ -1,9 +1,11 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -42,7 +44,33 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel)
         {
             viewModel.PickLibraryFolderAsync = PickLibraryFolderAsync;
+            viewModel.RequestRelaunch = RelaunchTo;
         }
+    }
+
+    // Launch the freshly-installed launcher executable and shut this instance down so its (now
+    // renamed-aside) old exe is released and swept on the next start.
+    private void RelaunchTo(string executablePath)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = executablePath,
+                WorkingDirectory = Path.GetDirectoryName(executablePath),
+                UseShellExecute = false,
+            });
+        }
+        catch
+        {
+            // If relaunch fails, leave the window open so the user can restart manually.
+            return;
+        }
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
+        else
+            Close();
     }
 
     private async Task<string?> PickLibraryFolderAsync(string? currentPath)

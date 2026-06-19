@@ -18,6 +18,18 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
+    <DockPanel>
+
+    <!-- Launcher self-update banner (shown only when a newer release is available) -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding IsLauncherUpdateAvailable}"
+            Background="#2D4A22" Padding="12,8">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0" Text="{Binding LauncherUpdateBanner}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            <Button Grid.Column="1" Content="Update &amp; restart" Command="{Binding ApplyLauncherUpdateCommand}" Margin="8,0,0,0"/>
+            <Button Grid.Column="2" Content="Dismiss" Command="{Binding DismissLauncherUpdateCommand}" Margin="8,0,0,0"/>
+        </Grid>
+    </Border>
+
     <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnDefinitions="*,16,*">
 
         <!-- Mod picker -->
@@ -98,6 +110,7 @@
             <Button Content="Replays" Command="{Binding OpenReplaysFolderCommand}"/>
             <Button Content="Maps" Command="{Binding OpenMapsFolderCommand}"/>
             <Button Content="Saves" Command="{Binding OpenSavesFolderCommand}"/>
+            <Button Content="Check for launcher updates" Command="{Binding CheckForLauncherUpdateCommand}" Margin="16,0,0,0"/>
         </StackPanel>
 
         <!-- Status + progress -->
@@ -117,4 +130,6 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
         </StackPanel>
     </Grid>
+
+    </DockPanel>
 </Window>

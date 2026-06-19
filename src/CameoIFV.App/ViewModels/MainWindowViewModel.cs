@@ -35,6 +35,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _deleteButtonText = "Delete";
     [ObservableProperty] private string _removeLibraryButtonText = "Remove path";
     [ObservableProperty] private string? _selectedLibraryRoot;
+    [ObservableProperty] private bool _isLauncherUpdateAvailable;
+    [ObservableProperty] private string _launcherUpdateBanner = string.Empty;
+    private LauncherUpdate? _pendingLauncherUpdate;
 
     private readonly ConfirmationGate _deleteConfirmation = new(TimeSpan.FromSeconds(5));
     private readonly ConfirmationGate _removeLibraryConfirmation = new(TimeSpan.FromSeconds(5));
@@ -42,6 +45,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private CancellationTokenSource? _installCancellation;
 
     public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
+
+    /// <summary>Set by the view: launch the given executable and shut this instance down.</summary>
+    public Action<string>? RequestRelaunch { get; set; }
 
     public MainWindowViewModel() : this(new LauncherServices()) { }
 
@@ -312,6 +318,103 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Kicked off once at startup (release builds) to surface a launcher update non-intrusively.</summary>
+    public void BeginStartupUpdateCheck() => _ = DoCheckForLauncherUpdateAsync(userInitiated: false);
+
+    [RelayCommand(CanExecute = nameof(CanCheckForLauncherUpdate))]
+    private Task CheckForLauncherUpdate() => DoCheckForLauncherUpdateAsync(userInitiated: true);
+
+    private bool CanCheckForLauncherUpdate() => !IsBusy;
+
+    private async Task DoCheckForLauncherUpdateAsync(bool userInitiated)
+    {
+        try
+        {
+            if (userInitiated)
+                Status = "Checking for launcher updates…";
+
+            var update = await _services.CheckForLauncherUpdateAsync(includePrerelease: false, CancellationToken.None);
+            if (update is null)
+            {
+                _pendingLauncherUpdate = null;
+                IsLauncherUpdateAvailable = false;
+                ApplyLauncherUpdateCommand.NotifyCanExecuteChanged();
+                if (userInitiated)
+                {
+                    Status = $"Cameo-IFV is up to date ({_services.CurrentVersionDisplay}).";
+                    AppendSessionLog(Status);
+                }
+
+                return;
+            }
+
+            _pendingLauncherUpdate = update;
+            LauncherUpdateBanner = $"Cameo-IFV {update.DisplayVersion} is available — you have {_services.CurrentVersionDisplay}.";
+            IsLauncherUpdateAvailable = true;
+            ApplyLauncherUpdateCommand.NotifyCanExecuteChanged();
+            Status = LauncherUpdateBanner;
+            AppendSessionLog(Status);
+        }
+        catch (Exception ex)
+        {
+            // Stay silent on a failed background check — don't nag if GitHub is briefly unreachable.
+            if (userInitiated)
+            {
+                Status = $"Update check failed: {ex.Message}";
+                AppendSessionLog(Status);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void DismissLauncherUpdate() => IsLauncherUpdateAvailable = false;
+
+    [RelayCommand(CanExecute = nameof(CanApplyLauncherUpdate))]
+    private async Task ApplyLauncherUpdate()
+    {
+        if (_pendingLauncherUpdate is null || IsBusy)
+            return;
+
+        var update = _pendingLauncherUpdate;
+        IsBusy = true;
+        Progress = 0;
+        Status = $"Downloading Cameo-IFV {update.DisplayVersion}…";
+        AppendSessionLog(Status);
+        try
+        {
+            var progress = new Progress<UpdateProgress>(p =>
+            {
+                Progress = p.Fraction * 100;
+                if (!string.IsNullOrWhiteSpace(p.Message))
+                    AppendSessionLog(p.Message);
+            });
+
+            var newExe = await Task.Run(
+                () => _services.ApplyLauncherUpdateAsync(update, progress, CancellationToken.None));
+
+            IsLauncherUpdateAvailable = false;
+            Status = $"Updated to {update.DisplayVersion}. Restarting…";
+            AppendSessionLog($"Launcher updated to {update.DisplayVersion}. Relaunching {newExe}.");
+
+            if (RequestRelaunch is not null)
+                RequestRelaunch(newExe);
+            else
+                Status = $"Update installed. Restart Cameo-IFV to use {update.DisplayVersion}.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Launcher update failed: {ex.Message}";
+            AppendSessionLog(Status);
+        }
+        finally
+        {
+            IsBusy = false;
+            Progress = 0;
+        }
+    }
+
+    private bool CanApplyLauncherUpdate() => _pendingLauncherUpdate is not null && !IsBusy;
+
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void Delete()
     {
@@ -570,5 +673,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OpenReplaysFolderCommand.NotifyCanExecuteChanged();
         OpenMapsFolderCommand.NotifyCanExecuteChanged();
         OpenSavesFolderCommand.NotifyCanExecuteChanged();
+        CheckForLauncherUpdateCommand.NotifyCanExecuteChanged();
+        ApplyLauncherUpdateCommand.NotifyCanExecuteChanged();
     }
 }

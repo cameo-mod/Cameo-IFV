@@ -35,7 +35,17 @@ jobs:
             $version = "manual-${{ github.run_number }}"
           }
 
+          # Numeric Major.Minor.Patch for the assembly Version (required to be numeric); the full
+          # string (e.g. "v2.0.0") is kept as InformationalVersion so the running app can report and
+          # compare its own version for self-update.
+          $numeric = "0.0.0"
+          if ($version -match '^v?(\d+\.\d+\.\d+)') {
+            $numeric = $Matches[1]
+          }
+
           "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+          "ASSEMBLY_VERSION=$numeric" >> $env:GITHUB_ENV
+          "INFORMATIONAL_VERSION=$version" >> $env:GITHUB_ENV
 
       - name: Publish Windows x64 app
         run: >
@@ -48,6 +58,9 @@ jobs:
           -p:DebugType=None
           -p:DebugSymbols=false
           -p:PublishTrimmed=false
+          -p:Version=${{ env.ASSEMBLY_VERSION }}
+          -p:InformationalVersion=${{ env.INFORMATIONAL_VERSION }}
+          -p:IncludeSourceRevisionInInformationalVersion=false
           -o .\artifacts\publish\Cameo-IFV
 
       - name: Tidy portable package
