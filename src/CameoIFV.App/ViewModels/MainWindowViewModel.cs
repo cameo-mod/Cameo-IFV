@@ -275,6 +275,43 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool CanPlay() => SelectedInstance?.IsRunnable == true && !IsBusy;
 
+    [RelayCommand(CanExecute = nameof(CanOpenFolder))]
+    private void OpenDataFolder() => OpenProjectFolder(ProjectFolderKind.Data, "data");
+
+    [RelayCommand(CanExecute = nameof(CanOpenFolder))]
+    private void OpenReplaysFolder() => OpenProjectFolder(ProjectFolderKind.Replays, "replays");
+
+    [RelayCommand(CanExecute = nameof(CanOpenFolder))]
+    private void OpenMapsFolder() => OpenProjectFolder(ProjectFolderKind.Maps, "maps");
+
+    [RelayCommand(CanExecute = nameof(CanOpenFolder))]
+    private void OpenSavesFolder() => OpenProjectFolder(ProjectFolderKind.Saves, "saves");
+
+    private bool CanOpenFolder() => SelectedMod is not null;
+
+    private void OpenProjectFolder(ProjectFolderKind kind, string label)
+    {
+        if (SelectedMod is null)
+            return;
+
+        // Replays/Maps/Saves live under {kind}/{mod}/{version}; deep-link to the selected install's
+        // version when one is selected. Data is not version-namespaced, and no install means there's
+        // no version to target, so both fall back to the per-mod parent folder.
+        var version = kind == ProjectFolderKind.Data ? null : SelectedInstance?.Tag;
+
+        try
+        {
+            var path = _services.OpenProjectFolder(SelectedMod, kind, version);
+            Status = $"Opened {label} folder.";
+            AppendSessionLog($"Opened {label} folder: {path}");
+        }
+        catch (Exception ex)
+        {
+            Status = $"Could not open {label} folder: {ex.Message}";
+            AppendSessionLog(Status);
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void Delete()
     {
@@ -529,5 +566,9 @@ public partial class MainWindowViewModel : ViewModelBase
         AddLibraryCommand.NotifyCanExecuteChanged();
         RemoveLibraryCommand.NotifyCanExecuteChanged();
         CancelInstallCommand.NotifyCanExecuteChanged();
+        OpenDataFolderCommand.NotifyCanExecuteChanged();
+        OpenReplaysFolderCommand.NotifyCanExecuteChanged();
+        OpenMapsFolderCommand.NotifyCanExecuteChanged();
+        OpenSavesFolderCommand.NotifyCanExecuteChanged();
     }
 }

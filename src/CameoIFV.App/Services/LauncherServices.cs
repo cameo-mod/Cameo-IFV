@@ -7,6 +7,7 @@ using System.Net.Http;
 using CameoIFV.Core.Config;
 using CameoIFV.Core.Github;
 using CameoIFV.Core.Install;
+using CameoIFV.Core.Interaction;
 using CameoIFV.Core.Model;
 using CameoIFV.Core.Storage;
 using CameoIFV.Core.Update;
@@ -107,6 +108,19 @@ public sealed class LauncherServices
             SelectedModId = mod.Id,
             SelectedChannel = new SelectedChannelSettings(mod.Id, source.Channel, source.Repository),
         });
+    }
+
+    /// <summary>
+    /// Opens one of a project's user-data folders (replays, maps, saves, or the data root) in the
+    /// host file manager, returning the resolved path. Uses the current library's support dir. When
+    /// <paramref name="version"/> is given, version-namespaced folders deep-link to that install's
+    /// subfolder if it exists.
+    /// </summary>
+    public string OpenProjectFolder(ModDefinition mod, ProjectFolderKind kind, string? version = null)
+    {
+        var path = new ProjectFolders(Paths).Resolve(mod, kind, version);
+        FolderOpener.Open(path);
+        return path;
     }
 
     private void SaveSettings(LauncherSettings settings)
