@@ -318,20 +318,14 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Kicked off once at startup (release builds) to surface a launcher update non-intrusively.</summary>
-    public void BeginStartupUpdateCheck() => _ = DoCheckForLauncherUpdateAsync(userInitiated: false);
-
+    // Launcher updates are fully manual: this runs only when the user clicks "Check for launcher
+    // updates". There is no automatic startup check, so the launcher never reaches out on its own.
     [RelayCommand(CanExecute = nameof(CanCheckForLauncherUpdate))]
-    private Task CheckForLauncherUpdate() => DoCheckForLauncherUpdateAsync(userInitiated: true);
-
-    private bool CanCheckForLauncherUpdate() => !IsBusy;
-
-    private async Task DoCheckForLauncherUpdateAsync(bool userInitiated)
+    private async Task CheckForLauncherUpdate()
     {
         try
         {
-            if (userInitiated)
-                Status = "Checking for launcher updates…";
+            Status = "Checking for launcher updates…";
 
             var update = await _services.CheckForLauncherUpdateAsync(includePrerelease: false, CancellationToken.None);
             if (update is null)
@@ -339,12 +333,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 _pendingLauncherUpdate = null;
                 IsLauncherUpdateAvailable = false;
                 ApplyLauncherUpdateCommand.NotifyCanExecuteChanged();
-                if (userInitiated)
-                {
-                    Status = $"Cameo-IFV is up to date ({_services.CurrentVersionDisplay}).";
-                    AppendSessionLog(Status);
-                }
-
+                Status = $"Cameo-IFV is up to date ({_services.CurrentVersionDisplay}).";
+                AppendSessionLog(Status);
                 return;
             }
 
@@ -357,14 +347,12 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            // Stay silent on a failed background check — don't nag if GitHub is briefly unreachable.
-            if (userInitiated)
-            {
-                Status = $"Update check failed: {ex.Message}";
-                AppendSessionLog(Status);
-            }
+            Status = $"Update check failed: {ex.Message}";
+            AppendSessionLog(Status);
         }
     }
+
+    private bool CanCheckForLauncherUpdate() => !IsBusy;
 
     [RelayCommand]
     private void DismissLauncherUpdate() => IsLauncherUpdateAvailable = false;
