@@ -9,6 +9,14 @@ public sealed record LauncherSettings(
     string? SelectedModId,
     SelectedChannelSettings? SelectedChannel)
 {
+    /// <summary>
+    /// Mod ids the user has put in "update in place" mode: instead of a folder per version under
+    /// <c>instances/{modId}/</c>, those mods install into a single fixed instance folder that the
+    /// launcher overwrites on each update (stable executable path for desktop shortcuts, no version
+    /// pile-up). Absent/empty means every mod keeps the default per-version isolation.
+    /// </summary>
+    public string[]? SingleInstanceModIds { get; init; }
+
     public IReadOnlyList<string> KnownLibraryRoots()
     {
         var roots = new List<string>();

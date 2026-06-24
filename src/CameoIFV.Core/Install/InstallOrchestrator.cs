@@ -32,6 +32,9 @@ public sealed class InstallOrchestrator
 {
     public const string MetadataFileName = ".cameo-ifv-install.json";
 
+    /// <summary>Fixed instance folder used in "update in place" mode (see <see cref="LauncherSettings.SingleInstanceModIds"/>).</summary>
+    public const string SingleInstanceFolder = "main";
+
     private readonly LauncherPaths _paths;
     private readonly UpdatePlanner _planner;
     private readonly IUpdaterFactory _updaters;
@@ -47,7 +50,8 @@ public sealed class InstallOrchestrator
         ModDefinition mod,
         ResolvedRelease release,
         IProgress<InstallProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool singleInstance = false)
     {
         _paths.EnsureBaseDirs();
 
@@ -69,7 +73,10 @@ public sealed class InstallOrchestrator
             : new Progress<UpdateProgress>(p => progress.Report(new InstallProgress(InstallPhase.Downloading, p.BytesTransferred, p.TotalBytes, updater.Mode, p.Message)));
         await updater.UpdateAsync(plan, dlProgress, cancellationToken);
 
-        var instanceDir = _paths.InstanceDir(mod.Id, release.TagName);
+        // In "update in place" mode every release lands in one fixed folder, which SwapIntoPlace then
+        // overwrites — giving a stable executable path. The real version still lives in the metadata.
+        var instanceFolder = singleInstance ? SingleInstanceFolder : release.TagName;
+        var instanceDir = _paths.InstanceDir(mod.Id, instanceFolder);
         var stagingDir = instanceDir + ".staging-" + Guid.NewGuid().ToString("N");
 
         try
@@ -122,6 +129,13 @@ public sealed class InstallOrchestrator
                 ? null
                 : Path.Combine(instanceDir, Path.GetRelativePath(stagingDir, stagedExe));
             WriteMetadata(instanceDir, mod, release, exe, extractedSize);
+
+            // Reclaim the old per-version folders, but ONLY once the new instance is proven usable:
+            // the swap above succeeded, metadata is written, and the executable is present on disk.
+            // If the new install has no runnable exe we keep the old versions as a fallback.
+            if (singleInstance && exe is not null && File.Exists(exe))
+                PruneOtherInstances(mod.Id, instanceDir);
+
             ReportDetail(progress, InstallPhase.Done, updater.Mode, $"""
             Install completed.
             Mod: {mod.DisplayName}
@@ -208,6 +222,42 @@ public sealed class InstallOrchestrator
             Path.Combine(instanceDir, MetadataFileName),
             JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
     }
+
+    /// <summary>
+    /// Removes this mod's other installed instance folders after an in-place update, reclaiming the disk
+    /// the old versions held. Deletes only completed instances (those carrying our metadata file) other
+    /// than the one just installed, so an in-flight <c>.staging-</c>/<c>.backup-</c> dir is never touched.
+    /// Operates purely under <c>instances/{modId}/</c>; user maps/replays/saves live in the separate
+    /// support dir and are never affected. Best-effort: a failed delete must not fail a good install.
+    /// </summary>
+    private void PruneOtherInstances(string modId, string keepDir)
+    {
+        try
+        {
+            var modRoot = Path.Combine(_paths.InstancesDir, modId);
+            if (!Directory.Exists(modRoot))
+                return;
+
+            foreach (var dir in Directory.EnumerateDirectories(modRoot))
+            {
+                if (PathsEqual(dir, keepDir))
+                    continue;
+
+                // Only prune a folder we know is a finished install of ours.
+                if (!File.Exists(Path.Combine(dir, MetadataFileName)))
+                    continue;
+
+                TryDeleteDir(dir);
+            }
+        }
+        catch { /* best effort: pruning never blocks or fails a completed install */ }
+    }
+
+    private static bool PathsEqual(string a, string b)
+        => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
 
     private static void SwapIntoPlace(string stagingDir, string instanceDir)
     {

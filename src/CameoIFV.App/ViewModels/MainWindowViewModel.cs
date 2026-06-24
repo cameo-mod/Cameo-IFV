@@ -37,11 +37,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _selectedLibraryRoot;
     [ObservableProperty] private bool _isLauncherUpdateAvailable;
     [ObservableProperty] private string _launcherUpdateBanner = string.Empty;
+    [ObservableProperty] private bool _singleInstanceMode;
     private LauncherUpdate? _pendingLauncherUpdate;
 
     private readonly ConfirmationGate _deleteConfirmation = new(TimeSpan.FromSeconds(5));
     private readonly ConfirmationGate _removeLibraryConfirmation = new(TimeSpan.FromSeconds(5));
     private bool _suppressLibrarySelectionSwitch;
+    private bool _suppressSingleInstanceSave;
     private CancellationTokenSource? _installCancellation;
 
     public Func<string?, Task<string?>>? PickLibraryFolderAsync { get; set; }
@@ -78,10 +80,26 @@ public partial class MainWindowViewModel : ViewModelBase
                 Channels.Add(new ChannelOption(source));
         }
 
+        // Reflect this mod's "update in place" setting without re-saving it back.
+        _suppressSingleInstanceSave = true;
+        try { SingleInstanceMode = value is not null && _services.IsSingleInstance(value.Id); }
+        finally { _suppressSingleInstanceSave = false; }
+
         RefreshInstalled();
         // Setting SelectedChannel triggers OnSelectedChannelChanged, which lists that feed.
         SelectedChannel = FindPreferredChannel(value) ?? Channels.FirstOrDefault();
         NotifyCommandStatesChanged();
+    }
+
+    partial void OnSingleInstanceModeChanged(bool value)
+    {
+        if (_suppressSingleInstanceSave || SelectedMod is null)
+            return;
+
+        _services.SetSingleInstance(SelectedMod.Id, value);
+        AppendSessionLog(value
+            ? $"{SelectedMod.DisplayName}: update in place — one instance folder, overwritten on update."
+            : $"{SelectedMod.DisplayName}: keep each version in its own folder.");
     }
 
     partial void OnSelectedChannelChanged(ChannelOption? value)
@@ -215,11 +233,15 @@ public partial class MainWindowViewModel : ViewModelBase
             });
 
             var token = _installCancellation.Token;
+            var singleInstance = _services.IsSingleInstance(mod.Id);
             var result = await Task.Run(
-                () => _services.Installer.InstallAsync(mod, release, progress, token),
+                () => _services.Installer.InstallAsync(mod, release, progress, token, singleInstance),
                 token);
             RefreshInstalled();
-            SelectedInstance = InstalledInstances.FirstOrDefault(i => i.Tag == release.TagName);
+            // Reselect by directory, not tag: in single-instance mode the folder is "main", not the tag.
+            SelectedInstance = InstalledInstances.FirstOrDefault(
+                i => string.Equals(i.Dir, result.InstanceDir, StringComparison.OrdinalIgnoreCase))
+                ?? InstalledInstances.FirstOrDefault();
             Status = result.ExecutablePath is null
                 ? $"Installed {release.TagName} (no executable found)."
                 : $"Installed {release.TagName}.";
@@ -269,7 +291,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             _services.Instances.Launch(SelectedInstance, SelectedMod);
-            Status = $"Launched {SelectedInstance.Tag}.";
+            Status = $"Launched {SelectedInstance.DisplayVersion}.";
             AppendSessionLog(Status);
         }
         catch (Exception ex)
@@ -303,7 +325,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // Replays/Maps/Saves live under {kind}/{mod}/{version}; deep-link to the selected install's
         // version when one is selected. Data is not version-namespaced, and no install means there's
         // no version to target, so both fall back to the per-mod parent folder.
-        var version = kind == ProjectFolderKind.Data ? null : SelectedInstance?.Tag;
+        var version = kind == ProjectFolderKind.Data ? null : SelectedInstance?.DisplayVersion;
 
         try
         {
@@ -414,7 +436,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var version = _deleteConfirmation.Arm(SelectedInstance.Tag, now);
             DeleteButtonText = "Confirm Delete";
-            Status = $"Click Confirm Delete within 5 seconds to remove {SelectedInstance.Tag}.";
+            Status = $"Click Confirm Delete within 5 seconds to remove {SelectedInstance.DisplayVersion}.";
             ExpireDeleteConfirmationAfterDelay(SelectedInstance.Tag, version);
             return;
         }
@@ -422,7 +444,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             _services.Instances.Delete(SelectedInstance);
-            Status = $"Deleted {SelectedInstance.Tag}.";
+            Status = $"Deleted {SelectedInstance.DisplayVersion}.";
             AppendSessionLog(Status);
             ClearPendingDelete();
             RefreshInstalled();

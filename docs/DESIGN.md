@@ -140,10 +140,36 @@ instance enumeration, settings compatibility, cleanup, confirmation timing, and 
 - ~~End-to-end zsync validation needs two published zsync-enabled Cameo releases.~~ **Done
   (2026-06-08):** seeded from `playtest-20260531`, updated to `20260608` — ~85% reused, ~15% fetched
   in parallel, assembled zip matches the control-file SHA-1.
-- Installed game files are isolated under `instances/{mod}/{tag}/`, but OpenRA settings/support
-  data are not currently isolated per instance. Cameo-IFV does not pass `Engine.SupportDir`, so
-  OpenRA normally uses its shared platform support directory (for example `%AppData%\OpenRA` on
-  Windows). Decide whether to preserve shared settings or offer per-instance support data.
+- ~~OpenRA settings/support data are not isolated per instance.~~ **Resolved (v2.0.0):** each project
+  gets one isolated support dir (`support/{modId}/`, passed via `Engine.SupportDir`), shared across all
+  of that project's installed versions and seeded once from the shared platform `%AppData%\OpenRA`
+  (`SupportDirManager`, `LauncherPaths.SupportDir`).
+- **Optional single updating instance ("update in place") — DONE (v2.1.0).** By default each version
+  installs into its own `instances/{modId}/{tag}/` folder, so the game's path changes every update
+  (breaking desktop shortcuts) and old releases pile up (~1.5 GB each). A per-mod "Update in place"
+  toggle (`LauncherSettings.SingleInstanceModIds`) instead installs that mod into one fixed folder,
+  `instances/{modId}/main/`, which the existing staged atomic swap overwrites on each update — so the
+  executable path is stable and versions don't accumulate. The real version still lives in the install
+  metadata and is shown via `InstalledInstance.DisplayVersion` (the folder is just "main"). It's
+  per-mod, so engines stay independent; off by default. After a **successful** in-place update — gated
+  on the new instance actually being runnable (swap done, metadata written, executable present) — the
+  launcher prunes that mod's other completed instance folders to reclaim the disk
+  (`InstallOrchestrator.PruneOtherInstances`). Pruning only ever touches `instances/{modId}/` folders
+  carrying our metadata file (never in-flight `.staging-`/`.backup-` dirs, never another mod, never the
+  support dir), so **user maps/replays/saves — which live in the separate support dir — are never at
+  risk.** The incremental zsync seed is per mod+channel (not per tag), so updates stay incremental
+  regardless of folder naming.
+- **User maps carry forward across updates — DONE (v2.1.0).** OpenRA stores user/downloaded maps under
+  a per-mod-*version* folder (`maps/{modId}/{version}`), so after an update the engine reads a fresh,
+  empty folder and the player's custom maps disappear from the in-game list until moved by hand. Because
+  the support dir is shared across a project's versions, every prior version's maps still sit on disk:
+  on launch, `MapMigrator.CarryForward` seeds the new version's folder from the most-recently-used prior
+  version (read from the instance's `mod.yaml` `User` map folder via `ModManifestReader`). Copy-only
+  (sources stay intact, rollback keeps its maps), marker-gated per target version (so a map the player
+  deletes in the new version stays deleted), and never blocks launching. Picks the single most-recent
+  prior folder rather than merging every old version, so deletions on the last-played version are
+  respected. Works for any OpenRA mod the launcher hosts (Cameo, Combined Arms, the official mods) since
+  they all share the `^SupportDir|maps/{modId}/{version}: User` convention.
 - **Shared packages (`packageId`).** The three OpenRA entries currently point to
   the same Windows portable zip but install independently. Add optional `packageId` so UI identity
   remains per-game while download seed and extracted instance storage can be shared. Existing mods

@@ -8,6 +8,13 @@ namespace CameoIFV.Core.Install;
 public sealed record InstalledInstance(string ModId, string Tag, string Dir, string? ExecutablePath, InstallMetadata? Metadata = null)
 {
     public bool IsRunnable => ExecutablePath is not null && File.Exists(ExecutablePath);
+
+    /// <summary>
+    /// The version to show the user. <see cref="Tag"/> is the on-disk folder name, which in
+    /// "update in place" mode is the fixed "main" rather than a version — so prefer the real release
+    /// tag recorded in the metadata when it's available.
+    /// </summary>
+    public string DisplayVersion => Metadata?.Tag ?? Tag;
 }
 
 /// <summary>
@@ -52,7 +59,13 @@ public sealed class InstanceManager
 
         // Isolate this project's user data in its own support dir (shared across the project's
         // versions), seeding it from the shared %AppData%\OpenRA on first launch.
-        var supportDir = SupportDirManager.Prepare(_paths.SupportDir(mod.Id), mod.EngineModId ?? mod.Id);
+        var engineModId = mod.EngineModId ?? mod.Id;
+        var supportDir = SupportDirManager.Prepare(_paths.SupportDir(mod.Id), engineModId);
+
+        // Carry the player's custom maps forward from the version they last played: OpenRA reads maps
+        // from a per-version folder, so without this an update hides them until moved by hand.
+        if (ModManifestReader.TryGetUserMapFolder(instance.Dir, engineModId, out var userMapFolder))
+            MapMigrator.CarryForward(supportDir, userMapFolder);
 
         // UseShellExecute must be false so ArgumentList drives deterministic command-line quoting.
         var startInfo = new ProcessStartInfo

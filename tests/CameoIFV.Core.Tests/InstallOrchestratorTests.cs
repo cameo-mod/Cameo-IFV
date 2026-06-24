@@ -110,6 +110,125 @@ public class InstallOrchestratorTests
     }
 
     [Fact]
+    public async Task SingleInstance_UsesFixedFolder_AndOverwritesOnUpdate()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ifv-install-{Guid.NewGuid():N}");
+        try
+        {
+            var paths = new LauncherPaths(root);
+            var planner = new UpdatePlanner(paths);
+            var mod = CameoMod();
+
+            var v1 = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"), ("marker.txt", "v1"))));
+            var r1 = await v1.InstallAsync(mod, Release("playtest-20260601"), progress: null, default, singleInstance: true);
+
+            var v2 = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"), ("marker.txt", "v2"))));
+            var r2 = await v2.InstallAsync(mod, Release("playtest-20260701"), progress: null, default, singleInstance: true);
+
+            // Both updates landed in the same fixed "main" folder, which the second overwrote.
+            Assert.Equal(r1.InstanceDir, r2.InstanceDir);
+            Assert.Equal(InstallOrchestrator.SingleInstanceFolder, Path.GetFileName(r2.InstanceDir));
+            Assert.Equal("v2", await File.ReadAllTextAsync(Path.Combine(r2.InstanceDir, "marker.txt")));
+
+            // Only one instance folder exists, and it reports the real version from metadata.
+            var manager = new InstanceManager(paths);
+            var one = Assert.Single(manager.ListInstalled(mod));
+            Assert.Equal("playtest-20260701", one.DisplayVersion);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SingleInstance_PrunesOldPerVersionFolders_OfTheSameMod()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ifv-install-{Guid.NewGuid():N}");
+        try
+        {
+            var paths = new LauncherPaths(root);
+            var planner = new UpdatePlanner(paths);
+            var mod = CameoMod();
+
+            // Two pre-existing per-version installs (isolated mode).
+            var iso = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"))));
+            await iso.InstallAsync(mod, Release("playtest-20260601"), progress: null, default);
+            await iso.InstallAsync(mod, Release("playtest-20260608"), progress: null, default);
+            Assert.Equal(2, Directory.EnumerateDirectories(Path.Combine(root, "instances", mod.Id)).Count());
+
+            // The first in-place update reclaims them, leaving only "main".
+            var inPlace = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"))));
+            await inPlace.InstallAsync(mod, Release("playtest-20260701"), progress: null, default, singleInstance: true);
+
+            var remaining = Directory.EnumerateDirectories(Path.Combine(root, "instances", mod.Id)).Select(Path.GetFileName).ToArray();
+            Assert.Equal(new[] { InstallOrchestrator.SingleInstanceFolder }, remaining);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SingleInstance_DoesNotPrune_WhenNewInstallHasNoRunnableExe()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ifv-install-{Guid.NewGuid():N}");
+        try
+        {
+            var paths = new LauncherPaths(root);
+            var planner = new UpdatePlanner(paths);
+            var mod = CameoMod();
+
+            var good = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"))));
+            await good.InstallAsync(mod, Release("playtest-20260601"), progress: null, default);
+
+            // A new in-place install whose zip lacks the configured executable: not "fully usable".
+            var noExe = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("data/rules.yaml", "x"))));
+            await noExe.InstallAsync(mod, Release("playtest-20260701"), progress: null, default, singleInstance: true);
+
+            // The old, runnable version is kept as a fallback rather than pruned.
+            var names = Directory.EnumerateDirectories(Path.Combine(root, "instances", mod.Id)).Select(Path.GetFileName).ToArray();
+            Assert.Contains("playtest-20260601", names);
+            Assert.Contains(InstallOrchestrator.SingleInstanceFolder, names);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SingleInstance_PruneNeverTouchesTheSupportDir()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ifv-install-{Guid.NewGuid():N}");
+        try
+        {
+            var paths = new LauncherPaths(root);
+            var planner = new UpdatePlanner(paths);
+            var mod = CameoMod();
+
+            // A custom map sitting in the support dir, as OpenRA would store it.
+            var userMap = Path.Combine(paths.SupportDir(mod.Id), "maps", "cameo", "playtest-20260601", "mine.oramap");
+            Directory.CreateDirectory(Path.GetDirectoryName(userMap)!);
+            await File.WriteAllTextAsync(userMap, "my map");
+
+            var iso = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"))));
+            await iso.InstallAsync(mod, Release("playtest-20260601"), progress: null, default);
+
+            var inPlace = new InstallOrchestrator(paths, planner, new FakeUpdater(MakeZip(("CameoMod.exe", "MZ"))));
+            await inPlace.InstallAsync(mod, Release("playtest-20260701"), progress: null, default, singleInstance: true);
+
+            // Pruning removed the old instance folder but left the user's map untouched.
+            Assert.Equal("my map", await File.ReadAllTextAsync(userMap));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Install_RejectsCorruptArchive()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ifv-install-{Guid.NewGuid():N}");

@@ -85,7 +85,7 @@
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="inst:InstalledInstance">
                     <StackPanel>
-                        <TextBlock Text="{Binding Tag}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding DisplayVersion}" FontWeight="SemiBold"/>
                         <TextBlock Text="not runnable" FontSize="11" Foreground="#c55" IsVisible="{Binding !IsRunnable}"/>
                     </StackPanel>
                 </DataTemplate>
@@ -96,6 +96,8 @@
         <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
             <Button Content="Install / Update" Command="{Binding InstallCommand}"/>
             <Button Content="Cancel" Command="{Binding CancelInstallCommand}"/>
+            <CheckBox Content="Update in place" IsChecked="{Binding SingleInstanceMode}" VerticalAlignment="Center"
+                      ToolTip.Tip="Keep one instance folder for this mod and overwrite it on each update — the game's path stays the same (desktop shortcuts keep working) and old versions don't pile up. The previous version's folders are removed after the next successful update."/>
         </StackPanel>
         <Grid Grid.Row="4" Grid.Column="2" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
             <Button Grid.Column="0" Content="Play" Command="{Binding PlayCommand}" MinWidth="100"
@@ -104,14 +106,16 @@
         </Grid>
 
         <!-- Open data folders (per project, shared across its installed versions) -->
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-            <TextBlock Text="Open folder:" VerticalAlignment="Center" Opacity="0.8"/>
-            <Button Content="Data" Command="{Binding OpenDataFolderCommand}"/>
-            <Button Content="Replays" Command="{Binding OpenReplaysFolderCommand}"/>
-            <Button Content="Maps" Command="{Binding OpenMapsFolderCommand}"/>
-            <Button Content="Saves" Command="{Binding OpenSavesFolderCommand}"/>
-            <Button Content="Check for launcher updates" Command="{Binding CheckForLauncherUpdateCommand}" Margin="16,0,0,0"/>
-        </StackPanel>
+        <Grid Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Open folder:" VerticalAlignment="Center" Opacity="0.8"/>
+                <Button Content="Data" Command="{Binding OpenDataFolderCommand}"/>
+                <Button Content="Replays" Command="{Binding OpenReplaysFolderCommand}"/>
+                <Button Content="Maps" Command="{Binding OpenMapsFolderCommand}"/>
+                <Button Content="Saves" Command="{Binding OpenSavesFolderCommand}"/>
+            </StackPanel>
+            <Button Grid.Column="1" Content="Check for launcher updates" Command="{Binding CheckForLauncherUpdateCommand}"/>
+        </Grid>
 
         <!-- Status + progress -->
         <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0" Spacing="4">

@@ -146,6 +146,24 @@ public sealed class LauncherServices
     public SelectedChannelSettings? SelectedChannel => _settings.SelectedChannel;
     public string? SelectedModId => _settings.SelectedModId;
 
+    /// <summary>Whether the given mod updates in place into one fixed instance folder (vs a folder per version).</summary>
+    public bool IsSingleInstance(string modId)
+        => _settings.SingleInstanceModIds?.Contains(modId, StringComparer.OrdinalIgnoreCase) ?? false;
+
+    /// <summary>Turns "update in place" mode on/off for one mod, persisting the change.</summary>
+    public void SetSingleInstance(string modId, bool enabled)
+    {
+        var current = _settings.SingleInstanceModIds ?? Array.Empty<string>();
+        if (enabled == current.Contains(modId, StringComparer.OrdinalIgnoreCase))
+            return;
+
+        var updated = enabled
+            ? current.Append(modId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : current.Where(id => !StringComparer.OrdinalIgnoreCase.Equals(id, modId)).ToArray();
+
+        SaveSettings(_settings with { SingleInstanceModIds = updated });
+    }
+
     public void SetSelectedFeed(ModDefinition mod, ReleaseSource source)
     {
         SaveSettings(_settings with
