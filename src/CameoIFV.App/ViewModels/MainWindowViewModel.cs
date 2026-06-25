@@ -24,6 +24,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<InstalledInstance> InstalledInstances { get; } = new();
     public ObservableCollection<string> LibraryRoots => _services.LibraryRoots;
 
+    /// <summary>Window title including the running version, e.g. "Cameo-IFV v2.1.0".</summary>
+    public string WindowTitle => $"Cameo-IFV {_services.CurrentVersionDisplay}";
+
     [ObservableProperty] private ModDefinition? _selectedMod;
     [ObservableProperty] private ChannelOption? _selectedChannel;
     [ObservableProperty] private ResolvedRelease? _selectedRelease;
@@ -66,7 +69,7 @@ public partial class MainWindowViewModel : ViewModelBase
             AppendSessionLog(Status);
         }
 
-        AppendSessionLog($"Session started. Library root: {_services.LibraryRoot}");
+        AppendSessionLog($"Cameo-IFV {_services.CurrentVersionDisplay} started. Library root: {_services.LibraryRoot}");
 
         SelectedMod = FindPreferredMod() ?? Mods.FirstOrDefault();
     }
@@ -369,6 +372,18 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanCheckForLauncherUpdate))]
     private async Task CheckForLauncherUpdate()
     {
+        // A local/dev build reports e.g. "1.0.0+{commit}", which would otherwise be seen as older than
+        // the latest release and offer to "update" the dev build down to it. Skip self-update entirely.
+        if (!AppVersion.IsRelease)
+        {
+            _pendingLauncherUpdate = null;
+            IsLauncherUpdateAvailable = false;
+            ApplyLauncherUpdateCommand.NotifyCanExecuteChanged();
+            Status = $"Development build ({_services.CurrentVersionDisplay}) — launcher self-update is disabled.";
+            AppendSessionLog(Status);
+            return;
+        }
+
         try
         {
             Status = "Checking for launcher updates…";
@@ -426,19 +441,34 @@ public partial class MainWindowViewModel : ViewModelBase
             var newExe = await Task.Run(
                 () => _services.ApplyLauncherUpdateAsync(update, progress, CancellationToken.None));
 
+            // Past this point the update is committed (new files are in place). A relaunch problem must
+            // NOT be reported as an update failure, so the restart is attempted in its own try below.
             IsLauncherUpdateAvailable = false;
-            Status = $"Updated to {update.DisplayVersion}. Restarting…";
-            AppendSessionLog($"Launcher updated to {update.DisplayVersion}. Relaunching {newExe}.");
+            AppendSessionLog($"Launcher updated to {update.DisplayVersion}.");
 
-            if (RequestRelaunch is not null)
+            try
+            {
+                if (RequestRelaunch is null)
+                {
+                    SetManualRestartStatus(update);
+                    return;
+                }
+
+                Status = $"Updated to {update.DisplayVersion}. Restarting…";
+                AppendSessionLog($"Relaunching {newExe}.");
                 RequestRelaunch(newExe);
-            else
-                Status = $"Update installed. Restart Cameo-IFV to use {update.DisplayVersion}.";
+            }
+            catch (Exception ex)
+            {
+                // The update succeeded; only the auto-restart didn't. Say so plainly.
+                SetManualRestartStatus(update);
+                AppendSessionLog($"Auto-restart didn't run ({DescribeError(ex)}). Close and reopen Cameo-IFV to finish.");
+            }
         }
         catch (Exception ex)
         {
-            Status = $"Launcher update failed: {ex.Message}";
-            AppendSessionLog(Status);
+            Status = $"Launcher update failed: {DescribeError(ex)}";
+            AppendSessionLog($"Launcher update failed: {ex}");
         }
         finally
         {
@@ -448,6 +478,17 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private bool CanApplyLauncherUpdate() => _pendingLauncherUpdate is not null && !IsBusy;
+
+    private void SetManualRestartStatus(LauncherUpdate update)
+    {
+        Status = $"Update to {update.DisplayVersion} installed. Close and reopen Cameo-IFV to start using it.";
+        AppendSessionLog(Status);
+    }
+
+    // Some exceptions surface with an empty Message (which rendered as a bare "failed:" with no reason),
+    // so fall back to the type name when there's nothing useful to show.
+    private static string DescribeError(Exception ex)
+        => string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void Delete()

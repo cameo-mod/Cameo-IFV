@@ -21,6 +21,17 @@ public static class AppVersion
     public static Version? Current { get; } = Parse(Raw);
 
     /// <summary>
+    /// True only for a packaged release build. The release workflow injects a clean tag version
+    /// ("vX.Y.Z") and disables the SourceLink "+{commit}" suffix; a local/dev build instead reads as
+    /// "1.0.0+{commit}" (or a bare assembly version). Self-update should be offered only for releases —
+    /// otherwise a dev build offers to "update" itself down to the latest release.
+    /// </summary>
+    public static bool IsRelease { get; } =
+        !string.IsNullOrWhiteSpace(Raw)
+        && Raw.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+        && !Raw.Contains('+');
+
+    /// <summary>
     /// Extracts a comparable Major.Minor.Patch from a version/tag string, ignoring a leading 'v',
     /// any pre-release/build suffix ("-rc1", "+abc123"), and surrounding noise. Null if none found.
     /// </summary>

@@ -63,14 +63,24 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // If relaunch fails, leave the window open so the user can restart manually.
+            // If we couldn't even start the new exe, leave this window open for a manual restart.
             return;
         }
 
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-        else
-            Close();
+        // The new instance is starting; shut this one down. Guard the teardown: a Shutdown()/Close()
+        // hiccup must not bubble up (it previously surfaced as a misleading "update failed"), and we
+        // must not linger beside the new instance — so force-exit if the graceful path throws.
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                desktop.Shutdown();
+            else
+                Close();
+        }
+        catch
+        {
+            Environment.Exit(0);
+        }
     }
 
     private async Task<string?> PickLibraryFolderAsync(string? currentPath)

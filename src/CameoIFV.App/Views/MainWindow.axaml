@@ -12,11 +12,59 @@
         Icon="/Assets/avalonia-logo.ico"
         Width="900" Height="660"
         WindowStartupLocation="CenterScreen"
-        Title="Cameo-IFV">
+        Title="{Binding WindowTitle}">
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>
     </Design.DataContext>
+
+    <Window.Styles>
+        <!-- Accent buttons. We recolor the templated ContentPresenter for the resting, hover and
+             pressed states; the disabled state is left to the theme so disabled buttons still gray out.
+             The :not(:disabled) guard keeps the resting colour from leaking onto a disabled button. -->
+
+        <!-- Refresh: teal -->
+        <Style Selector="Button.teal:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1F8A8A"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.teal:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#26A3A3"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.teal:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#176E6E"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- Play: dark green -->
+        <Style Selector="Button.play:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1B6E2E"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.play:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#228539"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.play:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#155724"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- Delete: red -->
+        <Style Selector="Button.danger:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#B33A3A"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#C94A4A"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#8F2E2E"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Styles>
 
     <DockPanel>
 
@@ -50,7 +98,7 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <Button Content="Refresh" Command="{Binding RefreshReleasesCommand}"/>
+            <Button Content="Refresh" Classes="teal" Command="{Binding RefreshReleasesCommand}"/>
         </StackPanel>
 
         <!-- Library location -->
@@ -94,15 +142,15 @@
 
         <!-- Action buttons -->
         <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-            <Button Content="Install / Update" Command="{Binding InstallCommand}"/>
+            <Button Content="Install / Update" FontWeight="Bold" Command="{Binding InstallCommand}"/>
             <Button Content="Cancel" Command="{Binding CancelInstallCommand}"/>
             <CheckBox Content="Update in place" IsChecked="{Binding SingleInstanceMode}" VerticalAlignment="Center"
                       ToolTip.Tip="Keep one instance folder for this mod and overwrite it on each update — the game's path stays the same (desktop shortcuts keep working) and old versions don't pile up. The previous version's folders are removed after the next successful update."/>
         </StackPanel>
         <Grid Grid.Row="4" Grid.Column="2" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
-            <Button Grid.Column="0" Content="Play" Command="{Binding PlayCommand}" MinWidth="100"
-                    HorizontalContentAlignment="Center"/>
-            <Button Grid.Column="2" Content="{Binding DeleteButtonText}" Command="{Binding DeleteCommand}"/>
+            <Button Grid.Column="0" Content="Play" Classes="play" Command="{Binding PlayCommand}" MinWidth="100"
+                    FontWeight="Bold" HorizontalContentAlignment="Center"/>
+            <Button Grid.Column="2" Content="{Binding DeleteButtonText}" Classes="danger" Command="{Binding DeleteCommand}"/>
         </Grid>
 
         <!-- Open data folders (per project, shared across its installed versions) -->
