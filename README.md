@@ -9,6 +9,9 @@ OpenRA-based games and total conversions (Cameo, Combined Arms, and sister proje
 
 Name inspired by RA2 Allied IFV.
 
+<img width="902" height="692" alt="image" src="https://github.com/user-attachments/assets/1f12da20-82d9-429a-bef3-f887ad1af3a0" />
+
+
 ## Why this exists
 
 The previous `cameo-launcher` re-downloaded the entire `-x64-winportable.zip` (hundreds of
