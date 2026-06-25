@@ -10,7 +10,7 @@
         x:Class="CameoIFV.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Width="820" Height="660"
+        Width="900" Height="660"
         WindowStartupLocation="CenterScreen"
         Title="Cameo-IFV">
 

@@ -10,11 +10,21 @@ public sealed record InstalledInstance(string ModId, string Tag, string Dir, str
     public bool IsRunnable => ExecutablePath is not null && File.Exists(ExecutablePath);
 
     /// <summary>
-    /// The version to show the user. <see cref="Tag"/> is the on-disk folder name, which in
-    /// "update in place" mode is the fixed "main" rather than a version — so prefer the real release
-    /// tag recorded in the metadata when it's available.
+    /// The label to show the user. <see cref="Tag"/> is the on-disk folder name; in "update in place"
+    /// mode that's the fixed "main", so show <c>Main (real-version)</c> — surfacing both the mode and
+    /// the actual installed version. A normal per-version install just shows its version.
     /// </summary>
-    public string DisplayVersion => Metadata?.Tag ?? Tag;
+    public string DisplayVersion
+    {
+        get
+        {
+            var version = Metadata?.Tag;
+            if (string.Equals(Tag, InstallOrchestrator.SingleInstanceFolder, StringComparison.OrdinalIgnoreCase))
+                return string.IsNullOrWhiteSpace(version) ? "Main" : $"Main ({version})";
+
+            return version ?? Tag;
+        }
+    }
 }
 
 /// <summary>
@@ -50,6 +60,82 @@ public sealed class InstanceManager
     {
         if (Directory.Exists(instance.Dir))
             Directory.Delete(instance.Dir, recursive: true);
+    }
+
+    /// <summary>
+    /// Adopts this mod's latest installed instance as the fixed "main" folder when the user turns on
+    /// "update in place", so the switch takes effect on the existing install immediately rather than
+    /// only on the next update — letting a desktop shortcut point at the stable path right away. The
+    /// rename is reversible (see <see cref="DemoteFromSingleInstance"/>): the real version stays in the
+    /// instance metadata, surfaced via <see cref="InstalledInstance.DisplayVersion"/>. Best-effort — a
+    /// running/locked instance just stays under its current name.
+    /// </summary>
+    public void PromoteToSingleInstance(ModDefinition mod)
+    {
+        try
+        {
+            var latest = ListInstalled(mod).FirstOrDefault();
+            if (latest is null)
+                return;
+
+            var mainDir = _paths.InstanceDir(mod.Id, InstallOrchestrator.SingleInstanceFolder);
+            if (PathsEqual(latest.Dir, mainDir))
+                return; // the latest install is already "main"
+
+            if (Directory.Exists(mainDir))
+            {
+                // An older "main" is superseded by the newer latest; swap it out with a rollback.
+                var backup = mainDir + ".old-" + Guid.NewGuid().ToString("N");
+                Directory.Move(mainDir, backup);
+                try { Directory.Move(latest.Dir, mainDir); }
+                catch { Directory.Move(backup, mainDir); throw; }
+                TryDeleteDir(backup);
+            }
+            else
+            {
+                Directory.Move(latest.Dir, mainDir);
+            }
+        }
+        catch { /* best effort: leave the instance under its current name on any failure */ }
+    }
+
+    /// <summary>
+    /// Reverses <see cref="PromoteToSingleInstance"/> when "update in place" is turned back off:
+    /// renames the "main" folder back to its real version (from the metadata) so the list shows the
+    /// version again and no stale "main" lingers. Skipped when the version is unknown or a folder for
+    /// that version already exists.
+    /// </summary>
+    public void DemoteFromSingleInstance(ModDefinition mod)
+    {
+        try
+        {
+            var mainDir = _paths.InstanceDir(mod.Id, InstallOrchestrator.SingleInstanceFolder);
+            if (!Directory.Exists(mainDir))
+                return;
+
+            var version = ReadMetadata(mainDir)?.Tag;
+            if (string.IsNullOrWhiteSpace(version))
+                return;
+
+            var versionDir = _paths.InstanceDir(mod.Id, version);
+            if (PathsEqual(versionDir, mainDir) || Directory.Exists(versionDir))
+                return;
+
+            Directory.Move(mainDir, versionDir);
+        }
+        catch { /* best effort: leave it as "main" on any failure */ }
+    }
+
+    private static bool PathsEqual(string a, string b)
+        => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static void TryDeleteDir(string path)
+    {
+        try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+        catch { /* best effort */ }
     }
 
     public Process Launch(InstalledInstance instance, ModDefinition mod)

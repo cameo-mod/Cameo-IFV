@@ -96,10 +96,33 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_suppressSingleInstanceSave || SelectedMod is null)
             return;
 
-        _services.SetSingleInstance(SelectedMod.Id, value);
-        AppendSessionLog(value
-            ? $"{SelectedMod.DisplayName}: update in place — one instance folder, overwritten on update."
-            : $"{SelectedMod.DisplayName}: keep each version in its own folder.");
+        var mod = SelectedMod;
+        _services.SetSingleInstance(mod.Id, value);
+        // The toggle renames the existing install (to/from "main"); reflect it in the list now.
+        RefreshInstalled();
+
+        string message;
+        if (value)
+        {
+            // After promotion the latest install is "main"; any remaining version folders will be
+            // pruned on the next successful update. Tell the user exactly what to expect.
+            var others = InstalledInstances.Count(i =>
+                !string.Equals(i.Tag, InstallOrchestrator.SingleInstanceFolder, StringComparison.OrdinalIgnoreCase));
+
+            message = others > 0
+                ? $"{mod.DisplayName}: \"Update in place\" is ON. The latest version is now the single \"main\" install. "
+                  + $"{others} older version folder(s) are kept for now and will be deleted on the next update to reclaim space."
+                : $"{mod.DisplayName}: \"Update in place\" is ON. This install is the single \"main\" folder, "
+                  + "overwritten on each update — the game's path (and your shortcut) stays the same.";
+        }
+        else
+        {
+            message = $"{mod.DisplayName}: \"Update in place\" is OFF. The current install is restored under its own "
+                + "version name, and each future update installs to its own folder (nothing is auto-deleted).";
+        }
+
+        Status = message;
+        AppendSessionLog(message);
     }
 
     partial void OnSelectedChannelChanged(ChannelOption? value)
@@ -185,11 +208,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private ChannelOption? FindPreferredChannel(ModDefinition? mod)
     {
-        var saved = _services.SelectedChannel;
-        if (mod is null || saved is null)
+        if (mod is null)
             return null;
 
-        if (!string.Equals(saved.ModId, mod.Id, StringComparison.OrdinalIgnoreCase))
+        // Each mod remembers its own channel, so switching away and back restores it.
+        var saved = _services.ChannelFor(mod.Id);
+        if (saved is null)
             return null;
 
         var exactMatch = Channels.FirstOrDefault(channel =>

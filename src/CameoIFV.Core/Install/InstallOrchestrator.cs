@@ -32,7 +32,7 @@ public sealed class InstallOrchestrator
 {
     public const string MetadataFileName = ".cameo-ifv-install.json";
 
-    /// <summary>Fixed instance folder used in "update in place" mode (see <see cref="LauncherSettings.SingleInstanceModIds"/>).</summary>
+    /// <summary>Fixed instance folder used in "update in place" mode (see <see cref="LauncherSettings.MultiInstanceModIds"/>).</summary>
     public const string SingleInstanceFolder = "main";
 
     private readonly LauncherPaths _paths;

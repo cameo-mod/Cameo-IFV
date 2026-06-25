@@ -146,32 +146,36 @@ public sealed class LauncherServices
     public SelectedChannelSettings? SelectedChannel => _settings.SelectedChannel;
     public string? SelectedModId => _settings.SelectedModId;
 
-    /// <summary>Whether the given mod updates in place into one fixed instance folder (vs a folder per version).</summary>
-    public bool IsSingleInstance(string modId)
-        => _settings.SingleInstanceModIds?.Contains(modId, StringComparer.OrdinalIgnoreCase) ?? false;
+    /// <summary>The channel/feed last chosen for the given mod, or null if it has none remembered yet.</summary>
+    public SelectedChannelSettings? ChannelFor(string modId) => _settings.ChannelFor(modId);
+
+    /// <summary>Whether the given mod updates in place into one fixed instance folder (the default) vs a folder per version.</summary>
+    public bool IsSingleInstance(string modId) => _settings.IsSingleInstance(modId);
 
     /// <summary>Turns "update in place" mode on/off for one mod, persisting the change.</summary>
     public void SetSingleInstance(string modId, bool enabled)
     {
-        var current = _settings.SingleInstanceModIds ?? Array.Empty<string>();
-        if (enabled == current.Contains(modId, StringComparer.OrdinalIgnoreCase))
+        var updated = _settings.WithSingleInstance(modId, enabled);
+        if (ReferenceEquals(updated, _settings))
+            return; // no change
+
+        SaveSettings(updated);
+
+        // Apply the switch to the existing install right away (reversible rename), not just on the
+        // next update, so the stable "main" path is usable immediately.
+        var mod = Catalog.Mods.FirstOrDefault(m => string.Equals(m.Id, modId, StringComparison.OrdinalIgnoreCase));
+        if (mod is null)
             return;
 
-        var updated = enabled
-            ? current.Append(modId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
-            : current.Where(id => !StringComparer.OrdinalIgnoreCase.Equals(id, modId)).ToArray();
-
-        SaveSettings(_settings with { SingleInstanceModIds = updated });
+        if (enabled)
+            Instances.PromoteToSingleInstance(mod);
+        else
+            Instances.DemoteFromSingleInstance(mod);
     }
 
     public void SetSelectedFeed(ModDefinition mod, ReleaseSource source)
-    {
-        SaveSettings(_settings with
-        {
-            SelectedModId = mod.Id,
-            SelectedChannel = new SelectedChannelSettings(mod.Id, source.Channel, source.Repository),
-        });
-    }
+        => SaveSettings(_settings.WithSelectedChannel(
+            new SelectedChannelSettings(mod.Id, source.Channel, source.Repository)));
 
     /// <summary>
     /// Opens one of a project's user-data folders (replays, maps, saves, or the data root) in the

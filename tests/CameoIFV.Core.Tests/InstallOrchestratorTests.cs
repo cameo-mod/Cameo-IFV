@@ -133,7 +133,7 @@ public class InstallOrchestratorTests
             // Only one instance folder exists, and it reports the real version from metadata.
             var manager = new InstanceManager(paths);
             var one = Assert.Single(manager.ListInstalled(mod));
-            Assert.Equal("playtest-20260701", one.DisplayVersion);
+            Assert.Equal("Main (playtest-20260701)", one.DisplayVersion);
         }
         finally
         {

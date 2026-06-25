@@ -144,14 +144,18 @@ instance enumeration, settings compatibility, cleanup, confirmation timing, and 
   gets one isolated support dir (`support/{modId}/`, passed via `Engine.SupportDir`), shared across all
   of that project's installed versions and seeded once from the shared platform `%AppData%\OpenRA`
   (`SupportDirManager`, `LauncherPaths.SupportDir`).
-- **Optional single updating instance ("update in place") — DONE (v2.1.0).** By default each version
-  installs into its own `instances/{modId}/{tag}/` folder, so the game's path changes every update
-  (breaking desktop shortcuts) and old releases pile up (~1.5 GB each). A per-mod "Update in place"
-  toggle (`LauncherSettings.SingleInstanceModIds`) instead installs that mod into one fixed folder,
-  `instances/{modId}/main/`, which the existing staged atomic swap overwrites on each update — so the
-  executable path is stable and versions don't accumulate. The real version still lives in the install
-  metadata and is shown via `InstalledInstance.DisplayVersion` (the folder is just "main"). It's
-  per-mod, so engines stay independent; off by default. After a **successful** in-place update — gated
+- **Single updating instance ("update in place") — DONE (v2.1.0), ON by default.** A mod installs into
+  one fixed folder, `instances/{modId}/main/`, which the existing staged atomic swap overwrites on each
+  update — so the game's executable path stays stable (desktop shortcuts keep working) and old releases
+  don't pile up (~1.5 GB each). The real version still lives in the install metadata and is shown as
+  `Main (version)` via `InstalledInstance.DisplayVersion` (the folder is just "main"). It's the default;
+  a per-mod "Update in place" checkbox lets the user opt a mod OUT to the classic folder-per-version
+  layout (`instances/{modId}/{tag}/`). The choice is a deny-list (`LauncherSettings.MultiInstanceModIds`
+  = mods opted out), so engines stay independent. Toggling the option applies to the existing
+  install immediately and reversibly: turning it on renames the latest instance folder to `main`
+  (`PromoteToSingleInstance`), turning it off renames `main` back to its real version
+  (`DemoteFromSingleInstance`), so the stable path is usable at once and no stale `main` lingers. After
+  a **successful** in-place update — gated
   on the new instance actually being runnable (swap done, metadata written, executable present) — the
   launcher prunes that mod's other completed instance folders to reclaim the disk
   (`InstallOrchestrator.PruneOtherInstances`). Pruning only ever touches `instances/{modId}/` folders
